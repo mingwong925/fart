@@ -30,13 +30,15 @@
             text-align: center;
             pointer-events: none;
             color: #ffcc00;
-            text-shadow: 4px 4px 10px #ff0000, -2px -2px 0 #000;
+            text-shadow: 3px 3px 8px #ff0000, -1px -1px 0 #000;
             font-family: 'Microsoft JhengHei', Arial, sans-serif;
             z-index: 10;
-            width: 80%;
+            width: 90%;
         }
-        h1 { font-size: 110px; margin: 0; font-weight: 900; }
-        p { font-size: 50px; color: #ffffff; text-shadow: 3px 3px 5px #000; }
+        /* 縮小標題字體 */
+        h1 { font-size: 75px; margin: 0; font-weight: 900; letter-spacing: 5px; line-height: 1.2; }
+        /* 縮小說明字體 */
+        p { font-size: 35px; color: #ffffff; text-shadow: 2px 2px 4px #000; margin-top: 15px; }
     </style>
 </head>
 <body>
@@ -56,27 +58,21 @@
         canvas.width = 1080;
         canvas.height = 1920;
 
-        // --- 資源載入 ---
         const imgIdle = new Image(); imgIdle.src = 'char_idle.png';
         const imgFart = new Image(); imgFart.src = 'char_fart.png';
         const imgPillar = new Image(); imgPillar.src = 'pillar.png';
         const imgBG = new Image(); imgBG.src = 'background.png';
         const fartSound = new Audio('fart.mp3');
 
-        // --- 遊戲變數 ---
         let frames = 0;
         let score = 0;
         let gameState = 'START';
         let particles = [];
         let bgX = 0;
-        const bgSpeed = 4; // 背景移動速度
+        const bgSpeed = 4;
+        let bgRenderWidth = 0;
 
-        // --- 背景縮放邏輯變數 ---
-        let bgRenderWidth = 0; // 縮放後的寬度
-
-        // 確保背景圖載入後計算尺寸
         imgBG.onload = () => {
-            // 以畫布高度 1920 為基準，計算不變形的寬度
             const ratio = canvas.height / imgBG.height;
             bgRenderWidth = imgBG.width * ratio;
         };
@@ -84,7 +80,7 @@
         class Particle {
             constructor(x, y) {
                 this.x = x; this.y = y;
-                this.size = Math.random() * 55 + 45;
+                this.size = Math.random() * 50 + 40;
                 this.speedX = Math.random() * -18 - 12;
                 this.speedY = Math.random() * 10 - 5;
                 this.opacity = 1;
@@ -129,7 +125,10 @@
         };
 
         const pipes = {
-            list: [], gap: 580, width: 240, speed: 10,
+            list: [], 
+            gap: 720, // 變簡單：空位從 580 增加到 720
+            width: 240, 
+            speed: 10,
             draw() {
                 this.list.forEach(p => {
                     ctx.drawImage(imgPillar, p.x, p.top + this.gap, this.width, 1600);
@@ -142,40 +141,34 @@
             },
             update() {
                 if (gameState !== 'PLAYING') return;
-                if (frames % 100 === 0) {
+                if (frames % 105 === 0) {
                     let top = Math.random() * (canvas.height - this.gap - 800) + 300;
                     this.list.push({ x: canvas.width, top: top });
                 }
                 this.list.forEach((p, index) => {
                     p.x -= this.speed;
-                    if (uncle.x + 60 < p.x + this.width && uncle.x + uncle.w - 60 > p.x) {
-                        if (uncle.y + 60 < p.top || uncle.y + uncle.h - 60 > p.top + this.gap) gameOver();
+                    // 碰撞判斷
+                    if (uncle.x + 65 < p.x + this.width && uncle.x + uncle.w - 65 > p.x) {
+                        if (uncle.y + 65 < p.top || uncle.y + uncle.h - 65 > p.top + this.gap) gameOver();
                     }
                     if (p.x + this.width < 0) { this.list.splice(index, 1); score++; }
                 });
             }
         };
 
-        // --- 核心修正：不變形滾動背景 ---
         function drawScrollingBackground() {
-            if (bgRenderWidth === 0) return; // 尚未載入完成
-
+            if (bgRenderWidth === 0) return;
             bgX -= bgSpeed;
-            // 當第一張背景完全移出螢幕時，重置位置
-            if (bgX <= -bgRenderWidth) {
-                bgX = 0;
-            }
-
-            // 繪製背景：循環繪製足夠多的次數來填滿畫布寬度 (1080)
-            // 由於 bgRenderWidth 通常會大於 1080，畫兩張就夠了
+            if (bgX <= -bgRenderWidth) bgX = 0;
             ctx.drawImage(imgBG, bgX, 0, bgRenderWidth, canvas.height);
             ctx.drawImage(imgBG, bgX + bgRenderWidth, 0, bgRenderWidth, canvas.height);
         }
 
         function gameOver() {
             gameState = 'GAMEOVER';
-            msg.innerHTML = "大 凶！臭 死 了";
-            subMsg.innerHTML = `本屆得分: ${score}<br>點擊重新 賀歲`;
+            // 更新失敗文字
+            msg.innerHTML = "不舒適人<br>5月一齊放屁"; 
+            subMsg.innerHTML = `得分: ${score}<br>點擊重賽`;
         }
 
         function resetGame() {
@@ -202,13 +195,16 @@
                 if (particles[i].opacity <= 0) { particles.splice(i, 1); i--; }
             }
             uncle.update(); uncle.draw();
+            
+            // 縮小得分顯示
             if (gameState === 'PLAYING') {
                 ctx.fillStyle = "rgba(255, 0, 0, 0.6)";
-                ctx.fillRect(50, 50, 320, 120);
+                ctx.fillRect(50, 50, 250, 90); // 縮小背板
                 ctx.fillStyle = "#ffcc00";
-                ctx.font = "bold 80px Arial";
-                ctx.fillText(`得分: ${score}`, 80, 140);
+                ctx.font = "bold 55px Arial"; // 縮小得分字體
+                ctx.fillText(`得分: ${score}`, 75, 115);
             }
+
             frames++;
             requestAnimationFrame(loop);
         }

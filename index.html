@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>屁王賀歲盃</title>
+    <!-- 引入 Zen Maru Gothic，Black 900 是最肥厚的粗體 -->
+    <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@900&display=swap" rel="stylesheet">
     <style>
         body {
             margin: 0;
@@ -29,16 +31,35 @@
             position: absolute;
             text-align: center;
             pointer-events: none;
-            color: #ffcc00;
-            text-shadow: 3px 3px 8px #ff0000, -1px -1px 0 #000;
-            font-family: 'Microsoft JhengHei', Arial, sans-serif;
+            font-family: 'Zen Maru Gothic', sans-serif;
             z-index: 10;
-            width: 90%;
+            width: 95%;
         }
-        /* 縮小標題字體 */
-        h1 { font-size: 75px; margin: 0; font-weight: 900; letter-spacing: 5px; line-height: 1.2; }
-        /* 縮小說明字體 */
-        p { font-size: 35px; color: #ffffff; text-shadow: 2px 2px 4px #000; margin-top: 15px; }
+        h1 { 
+            font-size: 75px; 
+            margin: 0; 
+            font-weight: 900; 
+            color: #ffcc00; /* 金色 */
+            
+            /* 關鍵：外描邊設定 */
+            -webkit-text-stroke: 10px #3d231a; /* 厚實的深啡色 */
+            paint-order: stroke fill; /* 讓邊框在字體外面 */
+            
+            letter-spacing: 5px;
+            line-height: 1.2;
+            text-shadow: none; /* 刪除所有陰影 */
+        }
+        p { 
+            font-size: 35px; 
+            margin-top: 15px;
+            color: #ffffff; /* 白色 */
+            font-weight: 900;
+            
+            /* 外描邊設定 */
+            -webkit-text-stroke: 5px #3d231a;
+            paint-order: stroke fill;
+            text-shadow: none;
+        }
     </style>
 </head>
 <body>
@@ -125,10 +146,7 @@
         };
 
         const pipes = {
-            list: [], 
-            gap: 720, // 變簡單：空位從 580 增加到 720
-            width: 240, 
-            speed: 10,
+            list: [], gap: 720, width: 240, speed: 10,
             draw() {
                 this.list.forEach(p => {
                     ctx.drawImage(imgPillar, p.x, p.top + this.gap, this.width, 1600);
@@ -147,7 +165,6 @@
                 }
                 this.list.forEach((p, index) => {
                     p.x -= this.speed;
-                    // 碰撞判斷
                     if (uncle.x + 65 < p.x + this.width && uncle.x + uncle.w - 65 > p.x) {
                         if (uncle.y + 65 < p.top || uncle.y + uncle.h - 65 > p.top + this.gap) gameOver();
                     }
@@ -166,7 +183,6 @@
 
         function gameOver() {
             gameState = 'GAMEOVER';
-            // 更新失敗文字
             msg.innerHTML = "不舒適人<br>5月一齊放屁"; 
             subMsg.innerHTML = `得分: ${score}<br>點擊重賽`;
         }
@@ -196,13 +212,21 @@
             }
             uncle.update(); uncle.draw();
             
-            // 縮小得分顯示
+            // 繪製遊戲中得分
             if (gameState === 'PLAYING') {
-                ctx.fillStyle = "rgba(255, 0, 0, 0.6)";
-                ctx.fillRect(50, 50, 250, 90); // 縮小背板
-                ctx.fillStyle = "#ffcc00";
-                ctx.font = "bold 55px Arial"; // 縮小得分字體
-                ctx.fillText(`得分: ${score}`, 75, 115);
+                const scoreText = `得分: ${score}`;
+                ctx.font = "900 55px 'Zen Maru Gothic'";
+                ctx.lineJoin = "round";
+                ctx.miterLimit = 2;
+                
+                // 關鍵：先畫描邊 (厚一點)
+                ctx.strokeStyle = "#3d231a"; 
+                ctx.lineWidth = 14; 
+                ctx.strokeText(scoreText, 80, 120);
+                
+                // 再填色，這樣填色會蓋住描邊的內側部分，形成完美的「外描邊」
+                ctx.fillStyle = "#ffcc00"; 
+                ctx.fillText(scoreText, 80, 120);
             }
 
             frames++;

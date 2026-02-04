@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>屁王賀歲盃</title>
-    <!-- 引入 Zen Maru Gothic，Black 900 是最肥厚的粗體 -->
     <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@900&display=swap" rel="stylesheet">
     <style>
         body {
@@ -39,23 +38,18 @@
             font-size: 75px; 
             margin: 0; 
             font-weight: 900; 
-            color: #ffcc00; /* 金色 */
-            
-            /* 關鍵：外描邊設定 */
-            -webkit-text-stroke: 10px #3d231a; /* 厚實的深啡色 */
-            paint-order: stroke fill; /* 讓邊框在字體外面 */
-            
+            color: #ffcc00; 
+            -webkit-text-stroke: 10px #3d231a; 
+            paint-order: stroke fill; 
             letter-spacing: 5px;
             line-height: 1.2;
-            text-shadow: none; /* 刪除所有陰影 */
+            text-shadow: none; 
         }
         p { 
             font-size: 35px; 
             margin-top: 15px;
-            color: #ffffff; /* 白色 */
+            color: #ffffff; 
             font-weight: 900;
-            
-            /* 外描邊設定 */
             -webkit-text-stroke: 5px #3d231a;
             paint-order: stroke fill;
             text-shadow: none;
@@ -79,11 +73,17 @@
         canvas.width = 1080;
         canvas.height = 1920;
 
+        // --- 資源載入 ---
         const imgIdle = new Image(); imgIdle.src = 'char_idle.png';
         const imgFart = new Image(); imgFart.src = 'char_fart.png';
         const imgPillar = new Image(); imgPillar.src = 'pillar.png';
         const imgBG = new Image(); imgBG.src = 'background.png';
+        
+        // 音效與音樂
         const fartSound = new Audio('fart.mp3');
+        const bgm = new Audio('bgm.mp3');
+        bgm.loop = true; // 設定 BGM 循環播放
+        bgm.volume = 0.5; // 設定音量 (0.0 到 1.0)
 
         let frames = 0;
         let score = 0;
@@ -185,18 +185,32 @@
             gameState = 'GAMEOVER';
             msg.innerHTML = "不舒適人<br>5月一齊放屁"; 
             subMsg.innerHTML = `得分: ${score}<br>點擊重賽`;
+            // 可選：失敗時降低 BGM 音量
+            bgm.volume = 0.2;
         }
 
         function resetGame() {
             uncle.y = 800; uncle.velocity = 0; uncle.isFarting = false;
             pipes.list = []; particles = []; score = 0; frames = 0;
             gameState = 'PLAYING'; msg.innerHTML = ""; subMsg.innerHTML = "";
+            
+            // 點擊重賽時確保 BGM 音量恢復
+            bgm.volume = 0.5;
+            bgm.play().catch(()=>{});
         }
 
         function handleInput(e) {
             if (e.type === 'touchstart') e.preventDefault();
-            if (gameState === 'PLAYING') uncle.flap();
-            else resetGame();
+            
+            // 第一次交互時啟動 BGM
+            if (gameState === 'START') {
+                bgm.play().catch(err => console.log("BGM 播放失敗:", err));
+                resetGame();
+            } else if (gameState === 'PLAYING') {
+                uncle.flap();
+            } else {
+                resetGame();
+            }
         }
 
         window.addEventListener('mousedown', handleInput);
@@ -212,19 +226,14 @@
             }
             uncle.update(); uncle.draw();
             
-            // 繪製遊戲中得分
             if (gameState === 'PLAYING') {
                 const scoreText = `得分: ${score}`;
                 ctx.font = "900 55px 'Zen Maru Gothic'";
                 ctx.lineJoin = "round";
                 ctx.miterLimit = 2;
-                
-                // 關鍵：先畫描邊 (厚一點)
                 ctx.strokeStyle = "#3d231a"; 
                 ctx.lineWidth = 14; 
                 ctx.strokeText(scoreText, 80, 120);
-                
-                // 再填色，這樣填色會蓋住描邊的內側部分，形成完美的「外描邊」
                 ctx.fillStyle = "#ffcc00"; 
                 ctx.fillText(scoreText, 80, 120);
             }

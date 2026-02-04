@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>屁王賀歲盃</title>
+    <style>
+        /* 頁面基本設定，保持深色背景 */
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #1a0000; /* 深紅底色更有過年感 */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            width: 100vw;
+            touch-action: none;
+        }
+
+        /* 1080x1920 比例自動縮放，不使用全螢幕 API */
+        canvas {
+            display: block;
+            max-width: 100vw;
+            max-height: 100vh;
+            aspect-ratio: 1080 / 1920;
+            background-color: #87CEEB;
+            box-shadow: 0 0 50px rgba(0,0,0,0.8);
+        }
+
+        #ui {
+            position: absolute;
+            text-align: center;
+            pointer-events: none;
+            color: #ffcc00; /* 金色文字 */
+            text-shadow: 4px 4px 10px #ff0000, -2px -2px 0 #000; /* 紅色光暈 */
+            font-family: 'Microsoft JhengHei', 'PingFang TC', Arial, sans-serif;
+            z-index: 10;
+            width: 80%;
+        }
+        h1 { font-size: 110px; margin: 0; font-weight: 900; letter-spacing: 10px; }
+        p { font-size: 50px; color: #ffffff; text-shadow: 3px 3px 5px #000; }
+    </style>
+</head>
+<body>
+
+    <div id="ui">
+        <h1 id="msg">屁 王 賀 歲 盃</h1>
+        <p id="subMsg">點擊畫面 開始比賽</p>
+    </div>
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const msg = document.getElementById('msg');
+        const subMsg = document.getElementById('subMsg');
+
+        // 固定內部解析度
+        canvas.width = 1080;
+        canvas.height = 1920;
+
+        // --- 資源載入 ---
+        const imgIdle = new Image(); imgIdle.src = 'char_idle.png';
+        const imgFart = new Image(); imgFart.src = 'char_fart.png';
+        const imgPillar = new Image(); imgPillar.src = 'pillar.png';
+        const imgBG = new Image(); imgBG.src = 'background.png';
+        const fartSound = new Audio('fart.mp3');
+
+        // --- 遊戲變數 ---
+        let frames = 0;
+        let score = 0;
+        let gameState = 'START';
+        let particles = [];
+        let bgX = 0;
+        const bgSpeed = 3; 
+
+        // --- 屁屁煙霧粒子 ---
+        class Particle {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.size = Math.random() * 55 + 45;
+                this.speedX = Math.random() * -18 - 12; // 噴射感加強
+                this.speedY = Math.random() * 10 - 5;
+                this.opacity = 1;
+                const colors = ['#6F4E37', '#8B4513', '#A67B5B'];
+                this.color = colors[Math.floor(Math.random() * colors.length)];
+            }
+            update() {
+                this.x += this.speedX;
+                this.y += this.speedY;
+                this.opacity -= 0.02;
+            }
+            draw() {
+                ctx.save();
+                ctx.fillStyle = this.color;
+                ctx.globalAlpha = this.opacity;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        // --- 角色物件 ---
+        const uncle = {
+            x: 150,
+            y: 800,
+            w: 280, 
+            h: 350,
+            gravity: 1.45, // 重力微調
+            jump: 33,      // 跳躍力微調
+            velocity: 0,
+            isFarting: false,
+            fartTimer: 0,
+            
+            draw() {
+                const currentImg = this.isFarting ? imgFart : imgIdle;
+                ctx.drawImage(currentImg, this.x, this.y, this.w, this.h);
+                
+                if (this.isFarting) {
+                    this.fartTimer--;
+                    if (this.fartTimer <= 0) this.isFarting = false;
+                }
+            },
+            
+            update() {
+                if (gameState === 'PLAYING') {
+                    this.velocity += this.gravity;
+                    this.y += this.velocity;
+                    
+                    // 撞地判定（留一點緩衝）
+                    if (this.y + this.h > canvas.height - 100) gameOver();
+                    if (this.y < 0) this.y = 0;
+                }
+            },
+            
+            flap() {
+                this.velocity = -this.jump;
+                this.isFarting = true;
+                this.fartTimer = 12; 
+                fartSound.currentTime = 0;
+                fartSound.play().catch(()=>{});
+                for(let i = 0; i < 15; i++) {
+                    particles.push(new Particle(this.x + 60, this.y + this.h - 110));
+                }
+            }
+        };
+
+        // --- 柱子物件 ---
+        const pipes = {
+            list: [],
+            gap: 580,    
+            width: 240,
+            speed: 10,
+
+            draw() {
+                this.list.forEach(p => {
+                    // 下柱子
+                    ctx.drawImage(imgPillar, p.x, p.top + this.gap, this.width, 1600);
+                    // 上柱子 (反轉)
+                    ctx.save();
+                    ctx.translate(p.x + this.width/2, p.top);
+                    ctx.scale(1, -1);
+                    ctx.drawImage(imgPillar, -this.width/2, 0, this.width, 1600);
+                    ctx.restore();
+                });
+            },
+
+            update() {
+                if (gameState !== 'PLAYING') return;
+                if (frames % 100 === 0) {
+                    let top = Math.random() * (canvas.height - this.gap - 800) + 300;
+                    this.list.push({ x: canvas.width, top: top });
+                }
+                this.list.forEach((p, index) => {
+                    p.x -= this.speed;
+                    // 碰撞檢測 (留一點容錯空間)
+                    if (uncle.x + 60 < p.x + this.width && uncle.x + uncle.w - 60 > p.x) {
+                        if (uncle.y + 60 < p.top || uncle.y + uncle.h - 60 > p.top + this.gap) {
+                            gameOver();
+                        }
+                    }
+                    if (p.x + this.width < 0) {
+                        this.list.splice(index, 1);
+                        score++;
+                    }
+                });
+            }
+        };
+
+        // 背景循環
+        function drawScrollingBackground() {
+            bgX -= bgSpeed;
+            if (bgX <= -canvas.width) bgX = 0;
+            ctx.drawImage(imgBG, bgX, 0, canvas.width, canvas.height);
+            ctx.drawImage(imgBG, bgX + canvas.width, 0, canvas.width, canvas.height);
+        }
+
+        function gameOver() {
+            gameState = 'GAMEOVER';
+            msg.innerHTML = "大 凶！臭 死 了";
+            subMsg.innerHTML = `本屆得分: ${score}<br>點擊重新 賀歲`;
+        }
+
+        function resetGame() {
+            uncle.y = 800;
+            uncle.velocity = 0;
+            uncle.isFarting = false;
+            pipes.list = [];
+            particles = [];
+            score = 0;
+            frames = 0;
+            gameState = 'PLAYING';
+            msg.innerHTML = "";
+            subMsg.innerHTML = "";
+        }
+
+        function handleInput(e) {
+            if (e.type === 'touchstart') e.preventDefault();
+            if (gameState === 'PLAYING') {
+                uncle.flap();
+            } else {
+                resetGame();
+            }
+        }
+
+        window.addEventListener('mousedown', handleInput);
+        window.addEventListener('touchstart', handleInput, {passive: false});
+
+        function loop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            drawScrollingBackground();
+            pipes.update();
+            pipes.draw();
+
+            for (let i = 0; i < particles.length; i++) {
+                particles[i].update();
+                particles[i].draw();
+                if (particles[i].opacity <= 0) { particles.splice(i, 1); i--; }
+            }
+
+            uncle.update();
+            uncle.draw();
+
+            if (gameState === 'PLAYING') {
+                ctx.fillStyle = "rgba(255, 0, 0, 0.6)"; // 紅色透明背景
+                ctx.fillRect(50, 50, 320, 120);
+                ctx.fillStyle = "#ffcc00"; // 金色分數
+                ctx.font = "bold 80px Arial";
+                ctx.fillText(`得分: ${score}`, 80, 140);
+            }
+
+            frames++;
+            requestAnimationFrame(loop);
+        }
+
+        loop();
+    </script>
+</body>
+</html>

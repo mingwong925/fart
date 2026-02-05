@@ -5,9 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>屁王賀歲盃</title>
     <style>
+        /* 字體照樣設定，但改為非同步載入 */
         @font-face {
             font-family: 'jf-openhuninn';
             src: url('jf-openhuninn-2.1.ttf');
+            font-display: swap; /* 關鍵：字體沒好前先用系統字，好了自動替換 */
             font-weight: normal;
         }
 
@@ -23,17 +25,17 @@
             background-image: url('loading_BG.svg');
             background-size: contain; background-position: center; background-repeat: no-repeat;
             display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 500;
-            color: #ffffff; font-family: 'jf-openhuninn', sans-serif; text-shadow: none; 
-            transition: opacity 0.5s ease; cursor: pointer;
+            color: #ffffff; font-family: 'jf-openhuninn', 'Microsoft JhengHei', sans-serif;
+            transition: opacity 0.4s ease; cursor: pointer;
         }
 
-        .loader-bar { width: 300px; height: 20px; background: rgba(0, 0, 0, 0.6); border-radius: 20px; margin-top: 30px; overflow: hidden; border: 3px solid #ffffff; }
-        #loader-fill { width: 0%; height: 100%; background: #acff00; transition: width 0.2s; box-shadow: 0 0 15px #acff00; }
-        #loading-text { font-size: 45px; font-weight: bold; text-align: center; line-height: 1.5; color: #ffffff; }
+        .loader-bar { width: 300px; height: 12px; background: rgba(255, 255, 255, 0.1); border-radius: 20px; margin-top: 30px; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.3); }
+        #loader-fill { width: 0%; height: 100%; background: #acff00; transition: width 0.1s; box-shadow: 0 0 10px #acff00; }
+        #loading-text { font-size: 32px; font-weight: bold; text-align: center; color: #ffffff; margin-bottom: 5px; }
 
         canvas { display: block; max-width: 100vw; max-height: 100vh; aspect-ratio: 1080 / 1920; background-color: #1a0000; box-shadow: 0 0 50px rgba(0,0,0,0.8); }
 
-        #ui { position: absolute; text-align: center; pointer-events: none; font-family: 'jf-openhuninn', sans-serif; z-index: 10; width: 95%; }
+        #ui { position: absolute; text-align: center; pointer-events: none; font-family: 'jf-openhuninn', 'Microsoft JhengHei', sans-serif; z-index: 10; width: 95%; }
         h1 { font-size: 85px; margin: 0; font-weight: bold; color: #ffcc00; -webkit-text-stroke: 12px #3d231a; paint-order: stroke fill; letter-spacing: 5px; line-height: 1.3; }
         h1 span { font-size: 45px; -webkit-text-stroke: 7px #3d231a; display: block; margin-top: 10px; }
         p { font-size: 35px; margin-top: 15px; color: #ffffff; font-weight: bold; -webkit-text-stroke: 6px #3d231a; paint-order: stroke fill; }
@@ -66,13 +68,11 @@
 
         // --- 資源管理 ---
         const assets = {
-            images: { idle: 'char_idle.png', fart: 'char_fart.png', pillar: 'pillar.png', bg: 'background.jpg', red: 'redpocket.png', lbg: 'loading_BG.svg' },
-            audio: { fart: 'fart.mp3', bgm: 'bgm.mp3', collect: 'collect.mp3' }
+            images: { idle: 'char_idle.png', fart: 'char_fart.png', pillar: 'pillar.png', bg: 'background.jpg', red: 'redpocket.png', lbg: 'loading_BG.svg' }
         };
 
         const imageFiles = Object.values(assets.images);
-        const audioFiles = Object.values(assets.audio);
-        let totalToLoad = imageFiles.length + 1; // 圖片 + 字體 (音訊不計入強制等待)
+        let totalToLoad = imageFiles.length; // 只計算圖片，字體與音訊背景載入
         let loadedCount = 0;
         let isReady = false;
 
@@ -82,10 +82,7 @@
             let progress = Math.min(Math.floor((loadedCount / totalToLoad) * 100), 100);
             loaderFill.style.width = progress + '%';
             loaderText.innerText = `LOADING... ${progress}%`;
-            
-            if (loadedCount >= totalToLoad) {
-                setReady();
-            }
+            if (loadedCount >= totalToLoad) setReady();
         }
 
         function setReady() {
@@ -95,43 +92,28 @@
             loaderText.innerHTML = "準備就緒！<br>點擊參賽";
         }
 
-        // --- iPhone 載入優化：超時保護 (3秒後強制準備好) ---
-        setTimeout(setReady, 3000);
-
-        // --- 載入執行 ---
-        const imgIdle = new Image(); imgIdle.onload = updateLoader; imgIdle.src = assets.images.idle;
-        const imgFart = new Image(); imgFart.onload = updateLoader; imgFart.src = assets.images.fart;
-        const imgPillar = new Image(); imgPillar.onload = updateLoader; imgPillar.src = assets.images.pillar;
-        const imgRed = new Image(); imgRed.onload = updateLoader; imgRed.src = assets.images.red;
-        const imgLBG = new Image(); imgLBG.onload = updateLoader; imgLBG.src = assets.images.lbg;
-        
+        // 載入圖片 (圖片很小，會飛快載入完成)
+        const imgIdle = new Image(); imgIdle.onload = updateLoader; imgIdle.src = 'char_idle.png';
+        const imgFart = new Image(); imgFart.onload = updateLoader; imgFart.src = 'char_fart.png';
+        const imgPillar = new Image(); imgPillar.onload = updateLoader; imgPillar.src = 'pillar.png';
+        const imgRed = new Image(); imgRed.onload = updateLoader; imgRed.src = 'redpocket.png';
+        const imgLBG = new Image(); imgLBG.onload = updateLoader; imgLBG.src = 'loading_BG.svg';
         let bgRenderWidth = 1080;
         const imgBG = new Image();
         imgBG.onload = () => { bgRenderWidth = imgBG.width * (canvas.height / imgBG.height); updateLoader(); };
-        imgBG.src = assets.images.bg;
+        imgBG.src = 'background.jpg';
 
-        // 音訊在 iPhone 上採用異步載入，不阻塞進度條
-        const fartSound = new Audio(assets.audio.fart);
-        const collectSound = new Audio(assets.audio.collect);
-        const bgm = new Audio(assets.audio.bgm);
+        // 音效異步載入，不擋進度
+        const fartSound = new Audio('fart.mp3');
+        const collectSound = new Audio('collect.mp3');
+        const bgm = new Audio('bgm.mp3');
         bgm.loop = true; bgm.volume = 0.2;
 
-        // 字體檢測
-        if (document.fonts) {
-            document.fonts.ready.then(updateLoader);
-        } else {
-            updateLoader(); // 兼容舊版瀏覽器
-        }
-
-        // --- 遊戲變數 ---
+        // --- 遊戲邏輯 ---
         let gameState = 'LOADING';
-        let frames = 0;
-        let score = 0;
-        let particles = [];
-        let redPockets = [];
-        let bgX = 0;
+        let frames = 0, score = 0, bgX = 0, lastStateChange = 0;
+        let particles = [], redPockets = [];
         const bgSpeed = 4;
-        let lastStateChange = 0;
 
         class RedPocket {
             constructor(x, y) { this.x = x; this.y = y; this.w = 300; this.h = 336; this.floatAngle = 0; this.pulseAngle = 0; this.active = true; }
@@ -165,8 +147,7 @@
                 if (gameState === 'PLAYING') {
                     if (this.y > canvas.height) gameOver();
                     redPockets.forEach(rp => {
-                        if (rp.active && this.x + 50 < rp.x + rp.w && this.x + this.w - 50 > rp.x &&
-                            this.y + 50 < rp.y + rp.h + rp.offsetY && this.y + this.h - 50 > rp.y + rp.offsetY) {
+                        if (rp.active && this.x + 50 < rp.x + rp.w && this.x + this.w - 50 > rp.x && this.y + 50 < rp.y + rp.h + rp.offsetY && this.y + this.h - 50 > rp.y + rp.offsetY) {
                             rp.active = false; score += 5; collectSound.currentTime = 0; collectSound.play().catch(()=>{});
                         }
                     });
@@ -209,16 +190,14 @@
             const now = Date.now();
             if (!isReady) return;
             if (gameState === 'LOADING') {
-                loaderScreen.style.opacity = '0';
-                setTimeout(() => loaderScreen.style.display = 'none', 500);
-                gameState = 'START'; lastStateChange = now;
-                bgm.play().catch(()=>{}); // 點擊啟動音訊
+                loaderScreen.style.opacity = '0'; setTimeout(() => loaderScreen.style.display = 'none', 400);
+                gameState = 'START'; lastStateChange = now; bgm.play().catch(()=>{});
                 return;
             }
             if (now - lastStateChange < 400) return;
             if (gameState === 'START') resetGame();
             else if (gameState === 'PLAYING') uncle.flap();
-            else if (gameState === 'GAMEOVER') if (uncle.y > canvas.height) resetGame();
+            else if (gameState === 'GAMEOVER' && uncle.y > canvas.height) resetGame();
         }
 
         window.addEventListener('mousedown', globalInput);
@@ -242,7 +221,8 @@
             uncle.update(); uncle.draw();
             if (gameState === 'PLAYING') {
                 const scoreText = `得分: ${score}`;
-                ctx.font = "bold 55px 'jf-openhuninn', sans-serif";
+                // 指定字體順序，粉圓體沒好前用微軟正黑體
+                ctx.font = "bold 55px 'jf-openhuninn', 'Microsoft JhengHei', sans-serif";
                 ctx.lineJoin = "round"; ctx.miterLimit = 2; ctx.strokeStyle = "#3d231a"; ctx.lineWidth = 14; 
                 ctx.strokeText(scoreText, 80, 120); ctx.fillStyle = "#ffcc00"; ctx.fillText(scoreText, 80, 120);
             }

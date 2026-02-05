@@ -4,12 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>屁王賀歲盃</title>
-    <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@900&display=swap" rel="stylesheet">
     <style>
-        /* 支援自定義粉圓體 */
+        /* 1. 本地粉圓體 2.1 版加載 */
         @font-face {
             font-family: 'jf-openhuninn';
-            src: url('jf-openhuninn-2.0.ttf');
+            src: url('jf-openhuninn-2.1.ttf');
+            font-weight: normal;
         }
 
         body {
@@ -17,39 +17,64 @@
             display: flex; justify-content: center; align-items: center;
             height: 100vh; width: 100vw; touch-action: none;
         }
-        canvas {
-            display: block; max-width: 100vw; max-height: 100vh;
-            aspect-ratio: 1080 / 1920; background-color: #87CEEB;
-            box-shadow: 0 0 50px rgba(0,0,0,0.8);
+
+        /* --- LOADING 頁面 --- */
+        #loading-screen {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background-color: #1a0000;
+            background-image: url('loading_BG.svg');
+            background-size: contain; 
+            background-position: center;
+            background-repeat: no-repeat;
+            display: flex; flex-direction: column;
+            justify-content: center; align-items: center; z-index: 500;
+            
+            /* 文字設定：純白，無陰影 */
+            color: #ffffff; 
+            font-family: 'jf-openhuninn', sans-serif;
+            text-shadow: none; 
+            transition: opacity 0.5s ease;
         }
+
+        .loader-bar { 
+            width: 300px; height: 20px; background: rgba(0, 0, 0, 0.6); 
+            border-radius: 20px; margin-top: 30px; overflow: hidden; 
+            border: 3px solid #ffffff; 
+        }
+
+        #loader-fill { 
+            width: 0%; height: 100%; 
+            background: #acff00; /* 亮綠色 */
+            transition: width 0.2s; 
+            box-shadow: 0 0 15px #acff00; 
+        }
+
+        #loading-text { font-size: 45px; font-weight: bold; text-align: center; line-height: 1.5; color: #ffffff; }
+
+        /* --- 遊戲 UI --- */
+        canvas { display: block; max-width: 100vw; max-height: 100vh; aspect-ratio: 1080 / 1920; background-color: #1a0000; box-shadow: 0 0 50px rgba(0,0,0,0.8); }
+
         #ui {
             position: absolute; text-align: center; pointer-events: none;
-            font-family: 'jf-openhuninn', 'Zen Maru Gothic', sans-serif; 
+            font-family: 'jf-openhuninn', sans-serif; 
             z-index: 10; width: 95%;
-            opacity: 1; /* 預設顯示，避免卡死 */
         }
-        h1 { 
-            font-size: 85px; margin: 0; font-weight: 900; color: #ffcc00; 
-            -webkit-text-stroke: 12px #3d231a; paint-order: stroke fill; 
-            letter-spacing: 5px; line-height: 1.3;
-        }
-        h1 span {
-            font-size: 50px;
-            -webkit-text-stroke: 8px #3d231a;
-            display: block;
-            margin-top: 10px;
-        }
-        p { 
-            font-size: 35px; margin-top: 15px; color: #ffffff; 
-            font-weight: 900; -webkit-text-stroke: 6px #3d231a; paint-order: stroke fill;
-        }
+
+        h1 { font-size: 85px; margin: 0; font-weight: bold; color: #ffcc00; -webkit-text-stroke: 12px #3d231a; paint-order: stroke fill; letter-spacing: 5px; line-height: 1.3; }
+        h1 span { font-size: 45px; -webkit-text-stroke: 7px #3d231a; display: block; margin-top: 10px; }
+        p { font-size: 35px; margin-top: 15px; color: #ffffff; font-weight: bold; -webkit-text-stroke: 6px #3d231a; paint-order: stroke fill; }
     </style>
 </head>
 <body>
 
+    <div id="loading-screen">
+        <div id="loading-text">LOADING... 0%</div>
+        <div class="loader-bar"><div id="loader-fill"></div></div>
+    </div>
+
     <div id="ui">
         <h1 id="msg">屁 王 賀 歲 盃</h1>
-        <p id="subMsg">點擊畫面 奪取紅包</p>
+        <p id="subMsg">點擊畫面 開始比賽</p>
     </div>
     <canvas id="gameCanvas"></canvas>
 
@@ -58,121 +83,105 @@
         const ctx = canvas.getContext('2d');
         const msg = document.getElementById('msg');
         const subMsg = document.getElementById('subMsg');
+        const loaderScreen = document.getElementById('loading-screen');
+        const loaderFill = document.getElementById('loader-fill');
+        const loaderText = document.getElementById('loading-text');
 
         canvas.width = 1080;
         canvas.height = 1920;
 
-        // --- 資源宣告 ---
-        const imgIdle = new Image();
-        const imgFart = new Image();
-        const imgPillar = new Image();
-        const imgBG = new Image();
-        const imgRed = new Image();
-
-        // --- 資源載入監聽 (需在 src 賦值前) ---
-        let bgRenderWidth = 1080; // 預設值防止卡死
-        imgBG.onload = () => {
-            const ratio = canvas.height / imgBG.height;
-            bgRenderWidth = imgBG.width * ratio;
+        // --- 資源管理 ---
+        const assets = {
+            images: { idle: 'char_idle.png', fart: 'char_fart.png', pillar: 'pillar.png', bg: 'background.jpg', red: 'redpocket.png', lbg: 'loading_BG.svg' },
+            audio: { fart: 'fart.mp3', bgm: 'bgm.mp3', collect: 'collect.mp3' }
         };
 
-        imgIdle.src = 'char_idle.png';
-        imgFart.src = 'char_fart.png';
-        imgPillar.src = 'pillar.png';
-        imgBG.src = 'background.jpg'; 
-        imgRed.src = 'redpocket.png';
+        let totalAssets = Object.keys(assets.images).length + Object.keys(assets.audio).length + 1;
+        let loadedCount = 0;
+        let isReady = false;
+
+        function updateLoader() {
+            loadedCount++;
+            let progress = Math.floor((loadedCount / totalAssets) * 100);
+            loaderFill.style.width = progress + '%';
+            loaderText.innerText = `LOADING... ${progress}%`;
+            if (loadedCount >= totalAssets) {
+                isReady = true;
+                setTimeout(() => { loaderText.innerHTML = "準備就緒！<br>點擊參賽"; }, 300);
+            }
+        }
+
+        const imgIdle = new Image(); imgIdle.onload = updateLoader; imgIdle.src = assets.images.idle;
+        const imgFart = new Image(); imgFart.onload = updateLoader; imgFart.src = assets.images.fart;
+        const imgPillar = new Image(); imgPillar.onload = updateLoader; imgPillar.src = assets.images.pillar;
+        const imgRed = new Image(); imgRed.onload = updateLoader; imgRed.src = assets.images.red;
+        const imgLBG = new Image(); imgLBG.onload = updateLoader; imgLBG.src = assets.images.lbg;
+        let bgRenderWidth = 1080;
+        const imgBG = new Image();
+        imgBG.onload = () => { bgRenderWidth = imgBG.width * (canvas.height / imgBG.height); updateLoader(); };
+        imgBG.src = assets.images.bg;
+
+        const fartSound = new Audio(assets.audio.fart); fartSound.oncanplaythrough = updateLoader;
+        const collectSound = new Audio(assets.audio.collect); collectSound.oncanplaythrough = updateLoader;
+        const bgm = new Audio(assets.audio.bgm); bgm.oncanplaythrough = updateLoader;
+        bgm.loop = true; bgm.volume = 0.2;
         
-        const fartSound = new Audio('fart.mp3');
-        const bgm = new Audio('bgm.mp3');
-        const collectSound = new Audio('collect.mp3'); 
-        bgm.loop = true; bgm.volume = 0.5;
+        document.fonts.ready.then(updateLoader);
 
         // --- 遊戲變數 ---
+        let gameState = 'LOADING';
         let frames = 0;
         let score = 0;
-        let gameState = 'START';
         let particles = [];
         let redPockets = [];
         let bgX = 0;
         const bgSpeed = 4;
+        let lastStateChange = 0;
 
-        // --- 紅包類別 ---
         class RedPocket {
-            constructor(x, y) {
-                this.x = x; this.y = y;
-                this.w = 300; this.h = 336; 
-                this.floatAngle = 0; 
-                this.pulseAngle = 0; 
-                this.active = true;
-            }
+            constructor(x, y) { this.x = x; this.y = y; this.w = 300; this.h = 336; this.floatAngle = 0; this.pulseAngle = 0; this.active = true; }
             update() {
                 if (gameState === 'PLAYING') this.x -= 10;
-                this.floatAngle += 0.05;
-                this.pulseAngle += 0.08;
-                this.offsetY = Math.sin(this.floatAngle) * 35; 
-                this.glowRadius = 160 + Math.sin(this.pulseAngle) * 40; 
+                this.floatAngle += 0.05; this.pulseAngle += 0.08;
+                this.offsetY = Math.sin(this.floatAngle) * 35;
+                this.glowRadius = 160 + Math.sin(this.pulseAngle) * 40;
             }
             draw() {
                 if (!this.active) return;
                 ctx.save();
-                const centerX = this.x + this.w / 2;
-                const centerY = this.y + this.h / 2 + this.offsetY;
+                const centerX = this.x + this.w / 2; const centerY = this.y + this.h / 2 + this.offsetY;
                 const gradient = ctx.createRadialGradient(centerX, centerY, 50, centerX, centerY, this.glowRadius);
-                gradient.addColorStop(0, "rgba(255, 255, 200, 0.6)"); 
-                gradient.addColorStop(1, "rgba(255, 255, 200, 0)");   
-                ctx.fillStyle = gradient;
-                ctx.beginPath();
-                ctx.arc(centerX, centerY, this.glowRadius, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.drawImage(imgRed, this.x, this.y + this.offsetY, this.w, this.h);
-                ctx.restore();
+                gradient.addColorStop(0, "rgba(255, 255, 200, 0.6)"); gradient.addColorStop(1, "rgba(255, 255, 200, 0)");
+                ctx.fillStyle = gradient; ctx.beginPath(); ctx.arc(centerX, centerY, this.glowRadius, 0, Math.PI * 2); ctx.fill();
+                ctx.drawImage(imgRed, this.x, this.y + this.offsetY, this.w, this.h); ctx.restore();
             }
         }
 
         const uncle = {
-            x: 150, y: 800, base_y: 800, w: 280, h: 350,
-            gravity: 1.45, jump: 33, velocity: 0,
-            isFarting: false, fartTimer: 0,
+            x: 150, y: 800, base_y: 800, w: 280, h: 350, gravity: 1.45, jump: 33, velocity: 0, isFarting: false, fartTimer: 0,
             draw() {
                 const currentImg = this.isFarting ? imgFart : imgIdle;
                 ctx.drawImage(currentImg, this.x, this.y, this.w, this.h);
-                if (this.isFarting) {
-                    this.fartTimer--;
-                    if (this.fartTimer <= 0) this.isFarting = false;
-                }
+                if (this.isFarting) { this.fartTimer--; if (this.fartTimer <= 0) this.isFarting = false; }
             },
             update() {
-                if (gameState === 'START') {
-                    this.y = this.base_y + Math.sin(frames * 0.05) * 20;
-                    return;
-                }
-                this.velocity += this.gravity;
-                this.y += this.velocity;
-
+                if (gameState === 'START' || gameState === 'LOADING') { this.y = this.base_y + Math.sin(frames * 0.05) * 20; return; }
+                this.velocity += this.gravity; this.y += this.velocity;
                 if (gameState === 'PLAYING') {
                     if (this.y > canvas.height) gameOver();
                     redPockets.forEach(rp => {
                         if (rp.active && this.x + 50 < rp.x + rp.w && this.x + this.w - 50 > rp.x &&
                             this.y + 50 < rp.y + rp.h + rp.offsetY && this.y + this.h - 50 > rp.y + rp.offsetY) {
-                            rp.active = false; score += 5;
-                            collectSound.currentTime = 0; collectSound.play().catch(()=>{});
+                            rp.active = false; score += 5; collectSound.currentTime = 0; collectSound.play().catch(()=>{});
                         }
                     });
                 }
             },
             flap() {
-                if (gameState !== 'PLAYING') return;
-                this.velocity = -this.jump; this.isFarting = true; this.fartTimer = 21; 
+                this.velocity = -this.jump; this.isFarting = true; this.fartTimer = 21; // 0.35s
                 fartSound.currentTime = 0; fartSound.play().catch(()=>{});
                 for(let i = 0; i < 45; i++) {
-                    particles.push({
-                        x: this.x + 60, y: this.y + this.h - 110,
-                        size: Math.random() * 60 + 30,
-                        speedX: Math.random() * -20 - 10,
-                        speedY: Math.random() * 12 - 6,
-                        opacity: 1,
-                        color: ['#FFF0F5', '#FFE4E1', '#FFD1DC', '#FFC0CB'][Math.floor(Math.random()*4)]
-                    });
+                    particles.push({ x: this.x + 60, y: this.y + this.h - 110, size: Math.random() * 60 + 30, speedX: Math.random() * -20 - 10, speedY: Math.random() * 12 - 6, opacity: 1, color: ['#FFF0F5', '#FFE4E1', '#FFD1DC', '#FFC0CB'][Math.floor(Math.random()*4)] });
                 }
             }
         };
@@ -181,14 +190,11 @@
             list: [], width: 240, speed: 10,
             update() {
                 if (gameState !== 'PLAYING') return;
-                if (frames % 110 === 0) {
-                    let currentGap = Math.random() * (750 - 600) + 600;
-                    let top = Math.random() * (canvas.height - currentGap - 800) + 300;
-                    this.list.push({ x: canvas.width, top: top, gap: currentGap });
-                    if (Math.random() < 0.6) {
-                        let ry = top + currentGap / 2 - 168; 
-                        redPockets.push(new RedPocket(canvas.width + 550, ry));
-                    }
+                if (frames % 110 === 0 && frames > 10) {
+                    let gap = Math.random() * 150 + 600;
+                    let top = Math.random() * (canvas.height - gap - 800) + 300;
+                    this.list.push({ x: canvas.width, top: top, gap: gap });
+                    if (Math.random() < 0.6) redPockets.push(new RedPocket(canvas.width + 550, top + gap / 2 - 168));
                 }
                 this.list.forEach((p, index) => {
                     p.x -= this.speed;
@@ -200,42 +206,52 @@
             }
         };
 
-        function drawScrollingBackground() {
-            if (gameState === 'PLAYING') {
-                bgX -= bgSpeed;
-                if (bgX <= -bgRenderWidth) bgX = 0;
-            }
-            ctx.drawImage(imgBG, bgX, 0, bgRenderWidth, canvas.height);
-            ctx.drawImage(imgBG, bgX + bgRenderWidth, 0, bgRenderWidth, canvas.height);
-        }
-
-        function gameOver() {
-            if (gameState === 'GAMEOVER') return;
-            gameState = 'GAMEOVER';
+        function gameOver() { 
+            if (gameState === 'GAMEOVER') return; 
+            gameState = 'GAMEOVER'; lastStateChange = Date.now();
             msg.innerHTML = `不舒適人<br><span>五月一齊放屁</span>`; 
-            subMsg.innerHTML = `總得分: ${score}<br>點擊重新挑戰`;
-            bgm.volume = 0.2;
+            subMsg.innerHTML = `總得分: ${score}<br>點擊重新挑戰`; 
+            bgm.volume = 0.1; 
         }
 
-        function resetGame() {
+        function resetGame() { 
             uncle.y = 800; uncle.velocity = 0; uncle.isFarting = false;
             pipes.list = []; redPockets = []; particles = []; score = 0; frames = 0;
-            gameState = 'PLAYING'; msg.innerHTML = ""; subMsg.innerHTML = "";
-            bgm.volume = 0.5; bgm.play().catch(()=>{});
+            gameState = 'PLAYING'; lastStateChange = Date.now();
+            msg.innerHTML = ""; subMsg.innerHTML = ""; bgm.volume = 0.2; bgm.play().catch(()=>{});
+            uncle.flap();
         }
 
-        function handleInput(e) {
+        function globalInput(e) {
             if (e.type === 'touchstart') e.preventDefault();
-            if (gameState === 'START' || (gameState === 'GAMEOVER' && uncle.y > canvas.height)) resetGame();
+            const now = Date.now();
+            if (!isReady) return;
+            
+            // 載入完畢進入會場
+            if (gameState === 'LOADING') {
+                loaderScreen.style.opacity = '0';
+                setTimeout(() => loaderScreen.style.display = 'none', 500);
+                gameState = 'START';
+                lastStateChange = now;
+                bgm.play().catch(()=>{});
+                return;
+            }
+
+            // 防止連點 Bug
+            if (now - lastStateChange < 400) return;
+
+            if (gameState === 'START') resetGame();
             else if (gameState === 'PLAYING') uncle.flap();
+            else if (gameState === 'GAMEOVER' && uncle.y > canvas.height) resetGame();
         }
 
-        window.addEventListener('mousedown', handleInput);
-        window.addEventListener('touchstart', handleInput, {passive: false});
+        window.addEventListener('mousedown', globalInput);
+        window.addEventListener('touchstart', globalInput, {passive: false});
 
         function loop() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            drawScrollingBackground();
+            if (gameState === 'PLAYING') { bgX -= bgSpeed; if (bgX <= -bgRenderWidth) bgX = 0; }
+            ctx.drawImage(imgBG, bgX, 0, bgRenderWidth, canvas.height); ctx.drawImage(imgBG, bgX + bgRenderWidth, 0, bgRenderWidth, canvas.height);
             
             pipes.update();
             pipes.list.forEach(p => {
@@ -244,17 +260,11 @@
                 ctx.drawImage(imgPillar, -pipes.width/2, 0, pipes.width, 1600); ctx.restore();
             });
 
-            redPockets.forEach((rp, index) => {
-                rp.update(); rp.draw();
-                if (rp.x < -400) redPockets.splice(index, 1);
-            });
+            redPockets.forEach((rp, index) => { rp.update(); rp.draw(); if (rp.x < -400) redPockets.splice(index, 1); });
 
             for (let i = 0; i < particles.length; i++) {
-                let p = particles[i];
-                if (gameState === 'PLAYING') p.x += p.speedX;
-                p.y += p.speedY; p.opacity -= 0.02;
-                ctx.save(); ctx.fillStyle = p.color; ctx.globalAlpha = p.opacity;
-                ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+                let p = particles[i]; if (gameState === 'PLAYING') p.x += p.speedX; p.y += p.speedY; p.opacity -= 0.02;
+                ctx.save(); ctx.fillStyle = p.color; ctx.globalAlpha = p.opacity; ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill(); ctx.restore();
                 if (p.opacity <= 0) { particles.splice(i, 1); i--; }
             }
 
@@ -262,18 +272,13 @@
 
             if (gameState === 'PLAYING') {
                 const scoreText = `得分: ${score}`;
-                ctx.font = "900 55px 'jf-openhuninn', 'Zen Maru Gothic', sans-serif";
-                ctx.lineJoin = "round"; ctx.miterLimit = 2;
-                ctx.strokeStyle = "#3d231a"; ctx.lineWidth = 14; 
-                ctx.strokeText(scoreText, 80, 120);
-                ctx.fillStyle = "#ffcc00"; ctx.fillText(scoreText, 80, 120);
+                ctx.font = "bold 55px 'jf-openhuninn', sans-serif";
+                ctx.lineJoin = "round"; ctx.miterLimit = 2; ctx.strokeStyle = "#3d231a"; ctx.lineWidth = 14; 
+                ctx.strokeText(scoreText, 80, 120); ctx.fillStyle = "#ffcc00"; ctx.fillText(scoreText, 80, 120);
             }
-
             frames++;
             requestAnimationFrame(loop);
         }
-
-        // 直接啟動循環
         loop();
     </script>
 </body>

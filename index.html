@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>屁王賀歲盃</title>
     <style>
-        /* 1. 本地粉圓體 2.1 版加載 */
         @font-face {
             font-family: 'jf-openhuninn';
             src: url('jf-openhuninn-2.1.ttf');
@@ -18,48 +17,23 @@
             height: 100vh; width: 100vw; touch-action: none;
         }
 
-        /* --- LOADING 頁面 --- */
         #loading-screen {
             position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
             background-color: #1a0000;
             background-image: url('loading_BG.svg');
-            background-size: contain; 
-            background-position: center;
-            background-repeat: no-repeat;
-            display: flex; flex-direction: column;
-            justify-content: center; align-items: center; z-index: 500;
-            
-            /* 文字設定：純白，無陰影 */
-            color: #ffffff; 
-            font-family: 'jf-openhuninn', sans-serif;
-            text-shadow: none; 
-            transition: opacity 0.5s ease;
+            background-size: contain; background-position: center; background-repeat: no-repeat;
+            display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 500;
+            color: #ffffff; font-family: 'jf-openhuninn', sans-serif; text-shadow: none; 
+            transition: opacity 0.5s ease; cursor: pointer;
         }
 
-        .loader-bar { 
-            width: 300px; height: 20px; background: rgba(0, 0, 0, 0.6); 
-            border-radius: 20px; margin-top: 30px; overflow: hidden; 
-            border: 3px solid #ffffff; 
-        }
-
-        #loader-fill { 
-            width: 0%; height: 100%; 
-            background: #acff00; /* 亮綠色 */
-            transition: width 0.2s; 
-            box-shadow: 0 0 15px #acff00; 
-        }
-
+        .loader-bar { width: 300px; height: 20px; background: rgba(0, 0, 0, 0.6); border-radius: 20px; margin-top: 30px; overflow: hidden; border: 3px solid #ffffff; }
+        #loader-fill { width: 0%; height: 100%; background: #acff00; transition: width 0.2s; box-shadow: 0 0 15px #acff00; }
         #loading-text { font-size: 45px; font-weight: bold; text-align: center; line-height: 1.5; color: #ffffff; }
 
-        /* --- 遊戲 UI --- */
         canvas { display: block; max-width: 100vw; max-height: 100vh; aspect-ratio: 1080 / 1920; background-color: #1a0000; box-shadow: 0 0 50px rgba(0,0,0,0.8); }
 
-        #ui {
-            position: absolute; text-align: center; pointer-events: none;
-            font-family: 'jf-openhuninn', sans-serif; 
-            z-index: 10; width: 95%;
-        }
-
+        #ui { position: absolute; text-align: center; pointer-events: none; font-family: 'jf-openhuninn', sans-serif; z-index: 10; width: 95%; }
         h1 { font-size: 85px; margin: 0; font-weight: bold; color: #ffcc00; -webkit-text-stroke: 12px #3d231a; paint-order: stroke fill; letter-spacing: 5px; line-height: 1.3; }
         h1 span { font-size: 45px; -webkit-text-stroke: 7px #3d231a; display: block; margin-top: 10px; }
         p { font-size: 35px; margin-top: 15px; color: #ffffff; font-weight: bold; -webkit-text-stroke: 6px #3d231a; paint-order: stroke fill; }
@@ -96,37 +70,58 @@
             audio: { fart: 'fart.mp3', bgm: 'bgm.mp3', collect: 'collect.mp3' }
         };
 
-        let totalAssets = Object.keys(assets.images).length + Object.keys(assets.audio).length + 1;
+        const imageFiles = Object.values(assets.images);
+        const audioFiles = Object.values(assets.audio);
+        let totalToLoad = imageFiles.length + 1; // 圖片 + 字體 (音訊不計入強制等待)
         let loadedCount = 0;
         let isReady = false;
 
         function updateLoader() {
+            if (isReady) return;
             loadedCount++;
-            let progress = Math.floor((loadedCount / totalAssets) * 100);
+            let progress = Math.min(Math.floor((loadedCount / totalToLoad) * 100), 100);
             loaderFill.style.width = progress + '%';
             loaderText.innerText = `LOADING... ${progress}%`;
-            if (loadedCount >= totalAssets) {
-                isReady = true;
-                setTimeout(() => { loaderText.innerHTML = "準備就緒！<br>點擊參賽"; }, 300);
+            
+            if (loadedCount >= totalToLoad) {
+                setReady();
             }
         }
 
+        function setReady() {
+            if (isReady) return;
+            isReady = true;
+            loaderFill.style.width = '100%';
+            loaderText.innerHTML = "準備就緒！<br>點擊參賽";
+        }
+
+        // --- iPhone 載入優化：超時保護 (3秒後強制準備好) ---
+        setTimeout(setReady, 3000);
+
+        // --- 載入執行 ---
         const imgIdle = new Image(); imgIdle.onload = updateLoader; imgIdle.src = assets.images.idle;
         const imgFart = new Image(); imgFart.onload = updateLoader; imgFart.src = assets.images.fart;
         const imgPillar = new Image(); imgPillar.onload = updateLoader; imgPillar.src = assets.images.pillar;
         const imgRed = new Image(); imgRed.onload = updateLoader; imgRed.src = assets.images.red;
         const imgLBG = new Image(); imgLBG.onload = updateLoader; imgLBG.src = assets.images.lbg;
+        
         let bgRenderWidth = 1080;
         const imgBG = new Image();
         imgBG.onload = () => { bgRenderWidth = imgBG.width * (canvas.height / imgBG.height); updateLoader(); };
         imgBG.src = assets.images.bg;
 
-        const fartSound = new Audio(assets.audio.fart); fartSound.oncanplaythrough = updateLoader;
-        const collectSound = new Audio(assets.audio.collect); collectSound.oncanplaythrough = updateLoader;
-        const bgm = new Audio(assets.audio.bgm); bgm.oncanplaythrough = updateLoader;
+        // 音訊在 iPhone 上採用異步載入，不阻塞進度條
+        const fartSound = new Audio(assets.audio.fart);
+        const collectSound = new Audio(assets.audio.collect);
+        const bgm = new Audio(assets.audio.bgm);
         bgm.loop = true; bgm.volume = 0.2;
-        
-        document.fonts.ready.then(updateLoader);
+
+        // 字體檢測
+        if (document.fonts) {
+            document.fonts.ready.then(updateLoader);
+        } else {
+            updateLoader(); // 兼容舊版瀏覽器
+        }
 
         // --- 遊戲變數 ---
         let gameState = 'LOADING';
@@ -178,7 +173,7 @@
                 }
             },
             flap() {
-                this.velocity = -this.jump; this.isFarting = true; this.fartTimer = 21; // 0.35s
+                this.velocity = -this.jump; this.isFarting = true; this.fartTimer = 21;
                 fartSound.currentTime = 0; fartSound.play().catch(()=>{});
                 for(let i = 0; i < 45; i++) {
                     particles.push({ x: this.x + 60, y: this.y + this.h - 110, size: Math.random() * 60 + 30, speedX: Math.random() * -20 - 10, speedY: Math.random() * 12 - 6, opacity: 1, color: ['#FFF0F5', '#FFE4E1', '#FFD1DC', '#FFC0CB'][Math.floor(Math.random()*4)] });
@@ -206,43 +201,24 @@
             }
         };
 
-        function gameOver() { 
-            if (gameState === 'GAMEOVER') return; 
-            gameState = 'GAMEOVER'; lastStateChange = Date.now();
-            msg.innerHTML = `不舒適人<br><span>五月一齊放屁</span>`; 
-            subMsg.innerHTML = `總得分: ${score}<br>點擊重新挑戰`; 
-            bgm.volume = 0.1; 
-        }
-
-        function resetGame() { 
-            uncle.y = 800; uncle.velocity = 0; uncle.isFarting = false;
-            pipes.list = []; redPockets = []; particles = []; score = 0; frames = 0;
-            gameState = 'PLAYING'; lastStateChange = Date.now();
-            msg.innerHTML = ""; subMsg.innerHTML = ""; bgm.volume = 0.2; bgm.play().catch(()=>{});
-            uncle.flap();
-        }
+        function gameOver() { if (gameState === 'GAMEOVER') return; gameState = 'GAMEOVER'; lastStateChange = Date.now(); msg.innerHTML = `不舒適人<br><span>五月一齊放屁</span>`; subMsg.innerHTML = `總得分: ${score}<br>點擊重新挑戰`; bgm.volume = 0.1; }
+        function resetGame() { uncle.y = 800; uncle.velocity = 0; uncle.isFarting = false; pipes.list = []; redPockets = []; particles = []; score = 0; frames = 0; gameState = 'PLAYING'; lastStateChange = Date.now(); msg.innerHTML = ""; subMsg.innerHTML = ""; bgm.volume = 0.2; bgm.play().catch(()=>{}); uncle.flap(); }
 
         function globalInput(e) {
             if (e.type === 'touchstart') e.preventDefault();
             const now = Date.now();
             if (!isReady) return;
-            
-            // 載入完畢進入會場
             if (gameState === 'LOADING') {
                 loaderScreen.style.opacity = '0';
                 setTimeout(() => loaderScreen.style.display = 'none', 500);
-                gameState = 'START';
-                lastStateChange = now;
-                bgm.play().catch(()=>{});
+                gameState = 'START'; lastStateChange = now;
+                bgm.play().catch(()=>{}); // 點擊啟動音訊
                 return;
             }
-
-            // 防止連點 Bug
             if (now - lastStateChange < 400) return;
-
             if (gameState === 'START') resetGame();
             else if (gameState === 'PLAYING') uncle.flap();
-            else if (gameState === 'GAMEOVER' && uncle.y > canvas.height) resetGame();
+            else if (gameState === 'GAMEOVER') if (uncle.y > canvas.height) resetGame();
         }
 
         window.addEventListener('mousedown', globalInput);
@@ -252,24 +228,18 @@
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             if (gameState === 'PLAYING') { bgX -= bgSpeed; if (bgX <= -bgRenderWidth) bgX = 0; }
             ctx.drawImage(imgBG, bgX, 0, bgRenderWidth, canvas.height); ctx.drawImage(imgBG, bgX + bgRenderWidth, 0, bgRenderWidth, canvas.height);
-            
             pipes.update();
             pipes.list.forEach(p => {
                 ctx.drawImage(imgPillar, p.x, p.top + p.gap, pipes.width, 1600);
-                ctx.save(); ctx.translate(p.x + pipes.width/2, p.top); ctx.scale(1, -1);
-                ctx.drawImage(imgPillar, -pipes.width/2, 0, pipes.width, 1600); ctx.restore();
+                ctx.save(); ctx.translate(p.x + pipes.width/2, p.top); ctx.scale(1, -1); ctx.drawImage(imgPillar, -pipes.width/2, 0, pipes.width, 1600); ctx.restore();
             });
-
             redPockets.forEach((rp, index) => { rp.update(); rp.draw(); if (rp.x < -400) redPockets.splice(index, 1); });
-
             for (let i = 0; i < particles.length; i++) {
                 let p = particles[i]; if (gameState === 'PLAYING') p.x += p.speedX; p.y += p.speedY; p.opacity -= 0.02;
                 ctx.save(); ctx.fillStyle = p.color; ctx.globalAlpha = p.opacity; ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill(); ctx.restore();
                 if (p.opacity <= 0) { particles.splice(i, 1); i--; }
             }
-
             uncle.update(); uncle.draw();
-
             if (gameState === 'PLAYING') {
                 const scoreText = `得分: ${score}`;
                 ctx.font = "bold 55px 'jf-openhuninn', sans-serif";

@@ -6,53 +6,42 @@
     <title>屁王賀歲盃</title>
     <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@900&display=swap" rel="stylesheet">
     <style>
+        /* 支援自定義粉圓體 */
+        @font-face {
+            font-family: 'jf-openhuninn';
+            src: url('jf-openhuninn-2.0.ttf');
+        }
+
         body {
-            margin: 0;
-            padding: 0;
-            overflow: hidden;
-            background-color: #1a0000;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            width: 100vw;
-            touch-action: none;
+            margin: 0; padding: 0; overflow: hidden; background-color: #1a0000;
+            display: flex; justify-content: center; align-items: center;
+            height: 100vh; width: 100vw; touch-action: none;
         }
         canvas {
-            display: block;
-            max-width: 100vw;
-            max-height: 100vh;
-            aspect-ratio: 1080 / 1920;
-            background-color: #87CEEB;
+            display: block; max-width: 100vw; max-height: 100vh;
+            aspect-ratio: 1080 / 1920; background-color: #87CEEB;
             box-shadow: 0 0 50px rgba(0,0,0,0.8);
         }
         #ui {
-            position: absolute;
-            text-align: center;
-            pointer-events: none;
-            font-family: 'Zen Maru Gothic', sans-serif;
-            z-index: 10;
-            width: 95%;
+            position: absolute; text-align: center; pointer-events: none;
+            font-family: 'jf-openhuninn', 'Zen Maru Gothic', sans-serif; 
+            z-index: 10; width: 95%;
+            opacity: 0; transition: opacity 0.4s ease;
         }
         h1 { 
-            font-size: 75px; 
-            margin: 0; 
-            font-weight: 900; 
-            color: #ffcc00; 
-            -webkit-text-stroke: 10px #3d231a; 
-            paint-order: stroke fill; 
-            letter-spacing: 5px;
-            line-height: 1.2;
-            text-shadow: none; 
+            font-size: 85px; margin: 0; font-weight: 900; color: #ffcc00; 
+            -webkit-text-stroke: 12px #3d231a; paint-order: stroke fill; 
+            letter-spacing: 5px; line-height: 1.3;
+        }
+        h1 span {
+            font-size: 50px;
+            -webkit-text-stroke: 8px #3d231a;
+            display: block;
+            margin-top: 10px;
         }
         p { 
-            font-size: 35px; 
-            margin-top: 15px;
-            color: #ffffff; 
-            font-weight: 900;
-            -webkit-text-stroke: 5px #3d231a;
-            paint-order: stroke fill;
-            text-shadow: none;
+            font-size: 35px; margin-top: 15px; color: #ffffff; 
+            font-weight: 900; -webkit-text-stroke: 6px #3d231a; paint-order: stroke fill;
         }
     </style>
 </head>
@@ -60,7 +49,7 @@
 
     <div id="ui">
         <h1 id="msg">屁 王 賀 歲 盃</h1>
-        <p id="subMsg">點擊畫面 開始比賽</p>
+        <p id="subMsg">點擊畫面 奪取紅包</p>
     </div>
     <canvas id="gameCanvas"></canvas>
 
@@ -69,6 +58,7 @@
         const ctx = canvas.getContext('2d');
         const msg = document.getElementById('msg');
         const subMsg = document.getElementById('subMsg');
+        const uiLayer = document.getElementById('ui');
 
         canvas.width = 1080;
         canvas.height = 1920;
@@ -77,18 +67,20 @@
         const imgIdle = new Image(); imgIdle.src = 'char_idle.png';
         const imgFart = new Image(); imgFart.src = 'char_fart.png';
         const imgPillar = new Image(); imgPillar.src = 'pillar.png';
-        const imgBG = new Image(); imgBG.src = 'background.png';
+        const imgBG = new Image(); imgBG.src = 'background.jpg'; 
+        const imgRed = new Image(); imgRed.src = 'redpocket.png';
         
-        // 音效與音樂
         const fartSound = new Audio('fart.mp3');
         const bgm = new Audio('bgm.mp3');
-        bgm.loop = true; // 設定 BGM 循環播放
-        bgm.volume = 0.5; // 設定音量 (0.0 到 1.0)
+        const collectSound = new Audio('collect.mp3'); 
+        bgm.loop = true; bgm.volume = 0.5;
 
+        // --- 遊戲變數 ---
         let frames = 0;
         let score = 0;
         let gameState = 'START';
         let particles = [];
+        let redPockets = [];
         let bgX = 0;
         const bgSpeed = 4;
         let bgRenderWidth = 0;
@@ -98,27 +90,48 @@
             bgRenderWidth = imgBG.width * ratio;
         };
 
-        class Particle {
+        document.fonts.ready.then(() => {
+            uiLayer.style.opacity = 1;
+            loop();
+        });
+
+        // --- 紅包類別 ---
+        class RedPocket {
             constructor(x, y) {
                 this.x = x; this.y = y;
-                this.size = Math.random() * 50 + 40;
-                this.speedX = Math.random() * -18 - 12;
-                this.speedY = Math.random() * 10 - 5;
-                this.opacity = 1;
-                const colors = ['#6F4E37', '#8B4513', '#A67B5B'];
-                this.color = colors[Math.floor(Math.random() * colors.length)];
+                this.w = 300; this.h = 336; 
+                this.floatAngle = 0; 
+                this.pulseAngle = 0; 
+                this.active = true;
             }
-            update() { this.x += this.speedX; this.y += this.speedY; this.opacity -= 0.02; }
+            update() {
+                if (gameState === 'PLAYING') this.x -= 10;
+                this.floatAngle += 0.05;
+                this.pulseAngle += 0.08;
+                this.offsetY = Math.sin(this.floatAngle) * 35; 
+                this.glowRadius = 160 + Math.sin(this.pulseAngle) * 40; 
+            }
             draw() {
+                if (!this.active) return;
                 ctx.save();
-                ctx.fillStyle = this.color; ctx.globalAlpha = this.opacity;
-                ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.fill();
+                const centerX = this.x + this.w / 2;
+                const centerY = this.y + this.h / 2 + this.offsetY;
+                const gradient = ctx.createRadialGradient(centerX, centerY, 50, centerX, centerY, this.glowRadius);
+                gradient.addColorStop(0, "rgba(255, 255, 200, 0.6)"); 
+                gradient.addColorStop(1, "rgba(255, 255, 200, 0)");   
+
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, this.glowRadius, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.drawImage(imgRed, this.x, this.y + this.offsetY, this.w, this.h);
                 ctx.restore();
             }
         }
 
         const uncle = {
-            x: 150, y: 800, w: 280, h: 350,
+            x: 150, y: 800, base_y: 800, w: 280, h: 350,
             gravity: 1.45, jump: 33, velocity: 0,
             isFarting: false, fartTimer: 0,
             draw() {
@@ -130,43 +143,61 @@
                 }
             },
             update() {
+                if (gameState === 'START') {
+                    this.y = this.base_y + Math.sin(frames * 0.05) * 20;
+                    return;
+                }
+                this.velocity += this.gravity;
+                this.y += this.velocity;
+
                 if (gameState === 'PLAYING') {
-                    this.velocity += this.gravity; this.y += this.velocity;
-                    if (this.y + this.h > canvas.height - 100) gameOver();
-                    if (this.y < 0) this.y = 0;
+                    if (this.y > canvas.height) gameOver();
+                    redPockets.forEach(rp => {
+                        if (rp.active && this.x + 50 < rp.x + rp.w && this.x + this.w - 50 > rp.x &&
+                            this.y + 50 < rp.y + rp.h + rp.offsetY && this.y + this.h - 50 > rp.y + rp.offsetY) {
+                            rp.active = false; score += 5;
+                            collectSound.currentTime = 0; collectSound.play().catch(()=>{});
+                        }
+                    });
                 }
             },
             flap() {
-                this.velocity = -this.jump; this.isFarting = true; this.fartTimer = 12;
+                if (gameState !== 'PLAYING') return;
+                this.velocity = -this.jump; this.isFarting = true; this.fartTimer = 21; 
                 fartSound.currentTime = 0; fartSound.play().catch(()=>{});
+                
+                // --- 修改：極淺粉紅色系粒子 ---
                 for(let i = 0; i < 15; i++) {
-                    particles.push(new Particle(this.x + 60, this.y + this.h - 110));
+                    particles.push({
+                        x: this.x + 60, y: this.y + this.h - 110,
+                        size: Math.random() * 50 + 40,
+                        speedX: Math.random() * -18 - 12,
+                        speedY: Math.random() * 10 - 5,
+                        opacity: 1,
+                        // 使用：雪白粉、淺薰衣草粉、粉桃色、粉紅棉花糖色
+                        color: ['#FFF0F5', '#FFE4E1', '#FDD7E0', '#F3C6CE'][Math.floor(Math.random()*4)]
+                    });
                 }
             }
         };
 
         const pipes = {
-            list: [], gap: 720, width: 240, speed: 10,
-            draw() {
-                this.list.forEach(p => {
-                    ctx.drawImage(imgPillar, p.x, p.top + this.gap, this.width, 1600);
-                    ctx.save();
-                    ctx.translate(p.x + this.width/2, p.top);
-                    ctx.scale(1, -1);
-                    ctx.drawImage(imgPillar, -this.width/2, 0, this.width, 1600);
-                    ctx.restore();
-                });
-            },
+            list: [], width: 240, speed: 10,
             update() {
                 if (gameState !== 'PLAYING') return;
-                if (frames % 105 === 0) {
-                    let top = Math.random() * (canvas.height - this.gap - 800) + 300;
-                    this.list.push({ x: canvas.width, top: top });
+                if (frames % 110 === 0) {
+                    let currentGap = Math.random() * (750 - 600) + 600;
+                    let top = Math.random() * (canvas.height - currentGap - 800) + 300;
+                    this.list.push({ x: canvas.width, top: top, gap: currentGap });
+                    if (Math.random() < 0.6) {
+                        let ry = top + currentGap / 2 - 168; 
+                        redPockets.push(new RedPocket(canvas.width + 550, ry));
+                    }
                 }
                 this.list.forEach((p, index) => {
                     p.x -= this.speed;
-                    if (uncle.x + 65 < p.x + this.width && uncle.x + uncle.w - 65 > p.x) {
-                        if (uncle.y + 65 < p.top || uncle.y + uncle.h - 65 > p.top + this.gap) gameOver();
+                    if (uncle.x + 80 < p.x + this.width && uncle.x + uncle.w - 80 > p.x) {
+                        if (uncle.y + 80 < p.top || uncle.y + uncle.h - 80 > p.top + p.gap) gameOver();
                     }
                     if (p.x + this.width < 0) { this.list.splice(index, 1); score++; }
                 });
@@ -175,42 +206,33 @@
 
         function drawScrollingBackground() {
             if (bgRenderWidth === 0) return;
-            bgX -= bgSpeed;
-            if (bgX <= -bgRenderWidth) bgX = 0;
+            if (gameState === 'PLAYING') {
+                bgX -= bgSpeed;
+                if (bgX <= -bgRenderWidth) bgX = 0;
+            }
             ctx.drawImage(imgBG, bgX, 0, bgRenderWidth, canvas.height);
             ctx.drawImage(imgBG, bgX + bgRenderWidth, 0, bgRenderWidth, canvas.height);
         }
 
         function gameOver() {
+            if (gameState === 'GAMEOVER') return;
             gameState = 'GAMEOVER';
-            msg.innerHTML = "不舒適人<br>5月一齊放屁"; 
-            subMsg.innerHTML = `得分: ${score}<br>點擊重賽`;
-            // 可選：失敗時降低 BGM 音量
+            msg.innerHTML = `不舒適人<br><span>五月一齊放屁</span>`; 
+            subMsg.innerHTML = `總得分: ${score}<br>點擊重新挑戰`;
             bgm.volume = 0.2;
         }
 
         function resetGame() {
             uncle.y = 800; uncle.velocity = 0; uncle.isFarting = false;
-            pipes.list = []; particles = []; score = 0; frames = 0;
+            pipes.list = []; redPockets = []; particles = []; score = 0; frames = 0;
             gameState = 'PLAYING'; msg.innerHTML = ""; subMsg.innerHTML = "";
-            
-            // 點擊重賽時確保 BGM 音量恢復
-            bgm.volume = 0.5;
-            bgm.play().catch(()=>{});
+            bgm.volume = 0.5; bgm.play().catch(()=>{});
         }
 
         function handleInput(e) {
             if (e.type === 'touchstart') e.preventDefault();
-            
-            // 第一次交互時啟動 BGM
-            if (gameState === 'START') {
-                bgm.play().catch(err => console.log("BGM 播放失敗:", err));
-                resetGame();
-            } else if (gameState === 'PLAYING') {
-                uncle.flap();
-            } else {
-                resetGame();
-            }
+            if (gameState === 'START' || (gameState === 'GAMEOVER' && uncle.y > canvas.height)) resetGame();
+            else if (gameState === 'PLAYING') uncle.flap();
         }
 
         window.addEventListener('mousedown', handleInput);
@@ -219,29 +241,36 @@
         function loop() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             drawScrollingBackground();
-            pipes.update(); pipes.draw();
+            pipes.update();
+            pipes.list.forEach(p => {
+                ctx.drawImage(imgPillar, p.x, p.top + p.gap, pipes.width, 1600);
+                ctx.save(); ctx.translate(p.x + pipes.width/2, p.top); ctx.scale(1, -1);
+                ctx.drawImage(imgPillar, -pipes.width/2, 0, pipes.width, 1600); ctx.restore();
+            });
+            redPockets.forEach((rp, index) => {
+                rp.update(); rp.draw();
+                if (rp.x < -400) redPockets.splice(index, 1);
+            });
             for (let i = 0; i < particles.length; i++) {
-                particles[i].update(); particles[i].draw();
-                if (particles[i].opacity <= 0) { particles.splice(i, 1); i--; }
+                let p = particles[i];
+                if (gameState === 'PLAYING') p.x += p.speedX;
+                p.y += p.speedY; p.opacity -= 0.02;
+                ctx.save(); ctx.fillStyle = p.color; ctx.globalAlpha = p.opacity;
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill(); ctx.restore();
+                if (p.opacity <= 0) { particles.splice(i, 1); i--; }
             }
             uncle.update(); uncle.draw();
-            
             if (gameState === 'PLAYING') {
                 const scoreText = `得分: ${score}`;
-                ctx.font = "900 55px 'Zen Maru Gothic'";
-                ctx.lineJoin = "round";
-                ctx.miterLimit = 2;
-                ctx.strokeStyle = "#3d231a"; 
-                ctx.lineWidth = 14; 
+                ctx.font = "900 55px 'jf-openhuninn', 'Zen Maru Gothic'";
+                ctx.lineJoin = "round"; ctx.miterLimit = 2;
+                ctx.strokeStyle = "#3d231a"; ctx.lineWidth = 14; 
                 ctx.strokeText(scoreText, 80, 120);
-                ctx.fillStyle = "#ffcc00"; 
-                ctx.fillText(scoreText, 80, 120);
+                ctx.fillStyle = "#ffcc00"; ctx.fillText(scoreText, 80, 120);
             }
-
             frames++;
             requestAnimationFrame(loop);
         }
-        loop();
     </script>
 </body>
 </html>

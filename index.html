@@ -8,7 +8,7 @@
         /* 載入粉圓體 */
         @font-face {
             font-family: 'jf-openhuninn';
-            src: url('jf-openhuninn-2.1.ttf');
+            src: url('Cubic_11.woff');
             font-display: swap;
             font-weight: normal;
         }
@@ -42,26 +42,24 @@
             justify-content: center; align-items: center;
             pointer-events: none; z-index: 10;
             font-family: 'jf-openhuninn', 'Microsoft JhengHei', sans-serif;
-            text-align: center; /* 確保所有文字置中 */
+            text-align: center;
         }
 
         /* --- Logo 與 Glow 特效 --- */
         #logo-container {
             position: relative;
-            width: 85%;
+            width: 95%;
             display: flex; justify-content: center; align-items: center;
             margin-bottom: 60px;
         }
 
-        /* 模仿紅包的淡黃色發光 */
         #logo-glow {
             position: absolute;
             width: 100%; height: 100%;
             background: radial-gradient(circle, rgba(255, 255, 200, 0.6) 0%, rgba(255, 255, 200, 0) 70%);
             transform: scale(1.5);
             animation: glow-pulse 3s ease-in-out infinite;
-            pointer-events: none;
-            z-index: -1;
+            pointer-events: none; z-index: -1;
         }
 
         #game-logo {
@@ -93,7 +91,7 @@
         #loader-fill { width: 0%; height: 100%; background: #acff00; transition: width 0.1s; box-shadow: 0 0 10px #acff00; }
         #loading-text { font-size: 32px; font-weight: bold; text-align: center; color: #ffffff; margin-bottom: 5px; }
 
-        /* 文字樣式置中優化 */
+        /* 文字樣式 */
         h1 { font-size: 85px; margin: 0; font-weight: bold; color: #ffcc00; -webkit-text-stroke: 12px #3d231a; paint-order: stroke fill; letter-spacing: 5px; line-height: 1.3; width: 100%; }
         h1 span { font-size: 45px; -webkit-text-stroke: 7px #3d231a; display: block; margin-top: 15px; width: 100%; }
         p { font-size: 42px; margin: 30px 0 0 0; color: #ffffff; font-weight: bold; -webkit-text-stroke: 8px #3d231a; paint-order: stroke fill; width: 100%; line-height: 1.5; }
@@ -108,12 +106,10 @@
 
     <div id="game-frame">
         <div id="ui">
-            <!-- Logo 容器與發光效果 -->
             <div id="logo-container" style="display: none;">
                 <div id="logo-glow"></div>
                 <img id="game-logo" src="logo.png">
             </div>
-            
             <h1 id="msg" style="display: none;"></h1>
             <p id="subMsg">點擊畫面 開始比賽</p>
         </div>
@@ -252,13 +248,22 @@
             }
         };
 
+        // --- 核心更新：根據得分顯示不同文字 ---
         function gameOver() { 
             if (gameState === 'GAMEOVER') return; 
             gameState = 'GAMEOVER'; lastStateChange = Date.now();
             logoContainer.style.display = 'none'; 
             msg.style.display = 'block';
-            msg.innerHTML = `不舒適人<br><span>五月一齊放屁</span>`; 
-            subMsg.innerHTML = `總得分: ${score}<br>點擊回到大廳`; 
+
+            let rankText = "";
+            if (score >= 60) rankText = "屁王萬歲萬萬歲！";
+            else if (score >= 50) rankText = "屁王是你嗎？！";
+            else if (score >= 20) rankText = "咁易就放屁喇？";
+            else if (score >= 10) rankText = "廢到屁視你";
+            else rankText = "廢到屁視你";
+
+            msg.innerHTML = `不舒適人<br><span>${rankText}</span>`; 
+            subMsg.innerHTML = `總得分: ${score}<br>點擊再放多次！`; 
             bgm.volume = 0.1; 
         }
 

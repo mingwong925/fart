@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>屁王賀歲盃</title>
     <style>
-        /* 載入粉圓體 */
+        /* 載入 Cubic_11 字體 */
         @font-face {
             font-family: 'Cubic_11';
             src: url('Cubic_11.woff');
@@ -45,24 +45,21 @@
             text-align: center;
         }
 
-        /* --- Logo 與 Glow 特效修正 --- */
+        /* --- Logo 與 Glow 特效 --- */
         #logo-container {
             position: relative;
-            width: 85%; /* Logo 本身的佔比 */
+            width: 95%;
             display: flex; justify-content: center; align-items: center;
             margin-bottom: 60px;
         }
 
         #logo-glow {
             position: absolute;
-            /* 關鍵：讓光暈層寬度大於容器，防止邊緣被切斷 */
             width: 200%; height: 200%; 
             top: -50%; left: -50%;
-            /* 修正漸層：在 50% 處就完全透明，確保邊緣消失 */
             background: radial-gradient(circle, rgba(255, 255, 200, 0.7) 0%, rgba(255, 255, 200, 0) 55%);
             animation: glow-pulse 3s ease-in-out infinite;
-            pointer-events: none;
-            z-index: -1;
+            pointer-events: none; z-index: -1;
         }
 
         #game-logo {
@@ -94,7 +91,7 @@
         #loader-fill { width: 0%; height: 100%; background: #acff00; transition: width 0.1s; box-shadow: 0 0 10px #acff00; }
         #loading-text { font-size: 40px; font-weight: bold; text-align: center; color: #ffffff; margin-bottom: 5px; }
 
-        /* --- 文字樣式 --- */
+        /* --- 文字樣式 (修正起角並維持 SIZE) --- */
         h1 { 
             font-size: 80px; margin: 0; font-weight: bold; color: #ffcc00; 
             -webkit-text-stroke: 12px #3d231a; paint-order: stroke fill; 
@@ -123,12 +120,10 @@
 
     <div id="game-frame">
         <div id="ui">
-            <!-- Logo 容器修正 -->
             <div id="logo-container" style="display: none;">
                 <div id="logo-glow"></div>
                 <img id="game-logo" src="logo.png">
             </div>
-            
             <h1 id="msg" style="display: none;"></h1>
             <p id="subMsg">點擊畫面 開始比賽</p>
         </div>
@@ -214,7 +209,10 @@
         }
 
         const uncle = {
-            x: 150, y: 800, base_y: 800, w: 280, h: 350, gravity: 1.45, jump: 33, velocity: 0, isFarting: false, fartTimer: 0,
+            x: 150, y: 800, base_y: 800, 
+            // 修改點：按 375x392 比例調整後的顯示尺寸
+            w: 310, h: 324, 
+            gravity: 1.45, jump: 33, velocity: 0, isFarting: false, fartTimer: 0,
             draw() {
                 const currentImg = this.isFarting ? imgFart : imgIdle;
                 let currentAngle = 0;
@@ -232,7 +230,8 @@
                 if (gameState === 'PLAYING') {
                     if (this.y > canvas.height) gameOver();
                     redPockets.forEach(rp => {
-                        if (rp.active && this.x + 50 < rp.x + rp.w && this.x + this.w - 50 > rp.x && this.y + 50 < rp.y + rp.h + rp.offsetY && this.y + this.h - 50 > rp.y + rp.offsetY) {
+                        if (rp.active && this.x + 50 < rp.x + rp.w && this.x + this.w - 50 > rp.x &&
+                            this.y + 50 < rp.y + rp.h + rp.offsetY && this.y + this.h - 50 > rp.y + rp.offsetY) {
                             rp.active = false; score += 5; collectSound.currentTime = 0; collectSound.play().catch(()=>{});
                         }
                     });
@@ -259,8 +258,9 @@
                 }
                 this.list.forEach((p, index) => {
                     p.x -= this.speed;
-                    if (uncle.x + 80 < p.x + this.width && uncle.x + uncle.w - 80 > p.x) {
-                        if (uncle.y + 80 < p.top || uncle.y + uncle.h - 80 > p.top + p.gap) gameOver();
+                    // 碰撞判定調整 (因應角色寬度微調 offset)
+                    if (uncle.x + 95 < p.x + this.width && uncle.x + uncle.w - 95 > p.x) {
+                        if (uncle.y + 95 < p.top || uncle.y + uncle.h - 95 > p.top + p.gap) gameOver();
                     }
                     if (p.x + this.width < 0) { this.list.splice(index, 1); score++; }
                 });

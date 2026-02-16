@@ -308,43 +308,59 @@
         window.addEventListener('mousedown', globalInput);
         window.addEventListener('touchstart', globalInput, {passive: false});
 
-        // --- 自動暫停音樂監聽 (Visibility API) ---
         document.addEventListener('visibilitychange', () => {
-            if (document.hidden) {
-                bgm.pause();
-            } else {
-                // 如果使用者回到頁面，且遊戲不是在載入中，則恢復播放
-                if (gameState !== 'LOADING') {
-                    bgm.play().catch(() => {});
-                }
-            }
+            if (document.hidden) { bgm.pause(); } 
+            else if (gameState !== 'LOADING') { bgm.play().catch(() => {}); }
         });
 
+        // --- FPS 控制變數 (修正遊戲速度問題) ---
+        let fps = 60;
+        let now;
+        let then = Date.now();
+        let interval = 1000 / fps;
+        let delta;
+
         function loop() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            if (gameState === 'PLAYING') { bgX -= bgSpeed; if (bgX <= -bgRenderWidth) bgX = 0; }
-            ctx.drawImage(imgBG, bgX, 0, bgRenderWidth, canvas.height); ctx.drawImage(imgBG, bgX + bgRenderWidth, 0, bgRenderWidth, canvas.height);
-            pipes.update();
-            pipes.list.forEach(p => {
-                ctx.drawImage(imgPillar, p.x, p.top + p.gap, pipes.width, 1600);
-                ctx.save(); ctx.translate(p.x + pipes.width/2, p.top); ctx.scale(1, -1);
-                ctx.drawImage(imgPillar, -pipes.width/2, 0, pipes.width, 1600); ctx.restore();
-            });
-            redPockets.forEach((rp, index) => { rp.update(); rp.draw(); if (rp.x < -400) redPockets.splice(index, 1); });
-            for (let i = 0; i < particles.length; i++) {
-                let p = particles[i]; if (gameState === 'PLAYING') p.x += p.speedX; p.y += p.speedY; p.opacity -= 0.02;
-                ctx.save(); ctx.fillStyle = p.color; ctx.globalAlpha = p.opacity; ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill(); ctx.restore();
-                if (p.opacity <= 0) { particles.splice(i, 1); i--; }
-            }
-            uncle.update(); uncle.draw();
-            if (gameState === 'PLAYING') {
-                const scoreText = `得分: ${score}`;
-                ctx.font = "bold 55px 'Cubic_11', sans-serif";
-                ctx.lineJoin = "round"; ctx.miterLimit = 2; ctx.strokeStyle = "#3d231a"; ctx.lineWidth = 14; 
-                ctx.strokeText(scoreText, 80, 120); ctx.fillStyle = "#ffcc00"; ctx.fillText(scoreText, 80, 120);
-            }
-            frames++;
             requestAnimationFrame(loop);
+
+            now = Date.now();
+            delta = now - then;
+
+            // 只有當時間間隔達到 1/60 秒時，才更新畫面
+            if (delta > interval) {
+                then = now - (delta % interval);
+
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                if (gameState === 'PLAYING') { bgX -= bgSpeed; if (bgX <= -bgRenderWidth) bgX = 0; }
+                ctx.drawImage(imgBG, bgX, 0, bgRenderWidth, canvas.height); 
+                ctx.drawImage(imgBG, bgX + bgRenderWidth, 0, bgRenderWidth, canvas.height);
+                
+                pipes.update();
+                pipes.list.forEach(p => {
+                    ctx.drawImage(imgPillar, p.x, p.top + p.gap, pipes.width, 1600);
+                    ctx.save(); ctx.translate(p.x + pipes.width/2, p.top); ctx.scale(1, -1);
+                    ctx.drawImage(imgPillar, -pipes.width/2, 0, pipes.width, 1600); ctx.restore();
+                });
+                
+                redPockets.forEach((rp, index) => { rp.update(); rp.draw(); if (rp.x < -400) redPockets.splice(index, 1); });
+                
+                for (let i = 0; i < particles.length; i++) {
+                    let p = particles[i]; if (gameState === 'PLAYING') p.x += p.speedX; p.y += p.speedY; p.opacity -= 0.02;
+                    ctx.save(); ctx.fillStyle = p.color; ctx.globalAlpha = p.opacity; ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+                    if (p.opacity <= 0) { particles.splice(i, 1); i--; }
+                }
+                
+                uncle.update(); uncle.draw();
+                
+                if (gameState === 'PLAYING') {
+                    const scoreText = `得分: ${score}`;
+                    ctx.font = "bold 55px 'Cubic_11', sans-serif";
+                    ctx.lineJoin = "round"; ctx.miterLimit = 2; ctx.strokeStyle = "#3d231a"; ctx.lineWidth = 14; 
+                    ctx.strokeText(scoreText, 80, 120); ctx.fillStyle = "#ffcc00"; ctx.fillText(scoreText, 80, 120);
+                }
+                frames++;
+            }
         }
         loop();
     </script>

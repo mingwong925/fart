@@ -25,12 +25,13 @@
             width: auto; height: 100vh;
             aspect-ratio: 1080 / 1920;
             display: flex; justify-content: center; align-items: center;
+            /* 優化：陰影移到外框，避免 Canvas 每一幀重繪陰影導致手機卡頓 */
+            box-shadow: 0 0 50px rgba(0,0,0,0.8);
         }
 
         canvas {
             width: 100%; height: 100%;
             display: block;
-            box-shadow: 0 0 50px rgba(0,0,0,0.8);
             background-color: #1a0000;
         }
 
@@ -220,9 +221,12 @@
                 ctx.rotate(currentAngle);
                 ctx.drawImage(currentImg, -this.w / 2, -this.h / 2, this.w, this.h);
                 ctx.restore();
-                if (this.isFarting) { this.fartTimer--; if (this.fartTimer <= 0) this.isFarting = false; }
+                // 注意：fartTimer 邏輯移到 update 中處理，這裡只負責畫圖
             },
             update() {
+                // 減少 fartTimer 的邏輯移到這裡
+                if (this.isFarting) { this.fartTimer--; if (this.fartTimer <= 0) this.isFarting = false; }
+
                 if (gameState === 'START' || gameState === 'LOADING') { this.y = this.base_y + Math.sin(frames * 0.05) * 20; return; }
                 this.velocity += this.gravity; this.y += this.velocity;
                 if (gameState === 'PLAYING') {
@@ -237,7 +241,8 @@
             flap() {
                 this.velocity = -this.jump; this.isFarting = true; this.fartTimer = 21; 
                 fartSound.currentTime = 0; fartSound.play().catch(()=>{});
-                for(let i = 0; i < 45; i++) {
+                // 優化：減少粒子數量，從 45 減到 25，減輕手機負擔
+                for(let i = 0; i < 25; i++) {
                     particles.push({ x: this.x + 60, y: this.y + this.h - 110, size: Math.random() * 60 + 30, speedX: Math.random() * -20 - 10, speedY: Math.random() * 12 - 6, opacity: 1, color: ['#FFF0F5', '#FFE4E1', '#FFD1DC', '#FFC0CB'][Math.floor(Math.random()*4)] });
                 }
             }
@@ -247,6 +252,7 @@
             list: [], width: 240, speed: 10,
             update() {
                 if (gameState !== 'PLAYING') return;
+                // 注意：邏輯更新頻率固定，這裡的 frames 已經很穩定
                 if (frames % 110 === 0 && frames > 10) {
                     let gap = Math.random() * 150 + 600;
                     let top = Math.random() * (canvas.height - gap - 800) + 300;
@@ -313,55 +319,100 @@
             else if (gameState !== 'LOADING') { bgm.play().catch(() => {}); }
         });
 
-        // --- FPS 控制變數 (修正遊戲速度問題) ---
-        let fps = 60;
-        let now;
-        let then = Date.now();
-        let interval = 1000 / fps;
-        let delta;
+        // ==========================================
+        //  核心優化：固定時間步長 (Fixed Time Step)
+        // ==========================================
+        
+        // 我們將「運算」跟「畫圖」分開
+        // 運算：永遠每秒跑 60 次 (16.66ms 一次)，保證物理速度一致
+        // 畫圖：能跑多快跑多快
+        
+        let lastTime = Date.now();
+        let accumulator = 0;
+        const step = 1000 / 60; // 固定每一幀的邏輯時間 (16.66ms)
+
+        // 這裡只放「純數學運算」，不畫圖
+        function updateGameLogic() {
+            if (gameState === 'PLAYING') { 
+                bgX -= bgSpeed; 
+                if (bgX <= -bgRenderWidth) bgX = 0; 
+            }
+            
+            pipes.update();
+            redPockets.forEach((rp, index) => { rp.update(); if (rp.x < -400) redPockets.splice(index, 1); });
+            
+            for (let i = 0; i < particles.length; i++) {
+                let p = particles[i]; 
+                if (gameState === 'PLAYING') p.x += p.speedX; 
+                p.y += p.speedY; 
+                p.opacity -= 0.02;
+                if (p.opacity <= 0) { particles.splice(i, 1); i--; }
+            }
+            
+            uncle.update();
+            frames++;
+        }
+
+        // 這裡只放「畫圖」，不運算位置
+        function drawGameRender() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 背景
+            ctx.drawImage(imgBG, bgX, 0, bgRenderWidth, canvas.height); 
+            ctx.drawImage(imgBG, bgX + bgRenderWidth, 0, bgRenderWidth, canvas.height);
+            
+            // 柱子
+            pipes.list.forEach(p => {
+                ctx.drawImage(imgPillar, p.x, p.top + p.gap, pipes.width, 1600);
+                ctx.save(); ctx.translate(p.x + pipes.width/2, p.top); ctx.scale(1, -1);
+                ctx.drawImage(imgPillar, -pipes.width/2, 0, pipes.width, 1600); ctx.restore();
+            });
+            
+            // 紅包
+            redPockets.forEach(rp => rp.draw());
+            
+            // 粒子
+            for (let i = 0; i < particles.length; i++) {
+                let p = particles[i];
+                ctx.save(); ctx.fillStyle = p.color; ctx.globalAlpha = Math.max(0, p.opacity); 
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+            }
+            
+            // 主角
+            uncle.draw();
+            
+            // 分數
+            if (gameState === 'PLAYING') {
+                const scoreText = `得分: ${score}`;
+                ctx.font = "bold 55px 'Cubic_11', sans-serif";
+                ctx.lineJoin = "round"; ctx.miterLimit = 2; ctx.strokeStyle = "#3d231a"; ctx.lineWidth = 14; 
+                ctx.strokeText(scoreText, 80, 120); ctx.fillStyle = "#ffcc00"; ctx.fillText(scoreText, 80, 120);
+            }
+        }
 
         function loop() {
             requestAnimationFrame(loop);
 
-            now = Date.now();
-            delta = now - then;
+            let now = Date.now();
+            let frameTime = now - lastTime;
+            lastTime = now;
 
-            // 只有當時間間隔達到 1/60 秒時，才更新畫面
-            if (delta > interval) {
-                then = now - (delta % interval);
+            // 如果手機卡住太久（例如切換分頁），限制最大補償時間，避免一次跑幾百次運算導致卡死
+            if (frameTime > 100) frameTime = 100; 
 
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                
-                if (gameState === 'PLAYING') { bgX -= bgSpeed; if (bgX <= -bgRenderWidth) bgX = 0; }
-                ctx.drawImage(imgBG, bgX, 0, bgRenderWidth, canvas.height); 
-                ctx.drawImage(imgBG, bgX + bgRenderWidth, 0, bgRenderWidth, canvas.height);
-                
-                pipes.update();
-                pipes.list.forEach(p => {
-                    ctx.drawImage(imgPillar, p.x, p.top + p.gap, pipes.width, 1600);
-                    ctx.save(); ctx.translate(p.x + pipes.width/2, p.top); ctx.scale(1, -1);
-                    ctx.drawImage(imgPillar, -pipes.width/2, 0, pipes.width, 1600); ctx.restore();
-                });
-                
-                redPockets.forEach((rp, index) => { rp.update(); rp.draw(); if (rp.x < -400) redPockets.splice(index, 1); });
-                
-                for (let i = 0; i < particles.length; i++) {
-                    let p = particles[i]; if (gameState === 'PLAYING') p.x += p.speedX; p.y += p.speedY; p.opacity -= 0.02;
-                    ctx.save(); ctx.fillStyle = p.color; ctx.globalAlpha = p.opacity; ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill(); ctx.restore();
-                    if (p.opacity <= 0) { particles.splice(i, 1); i--; }
-                }
-                
-                uncle.update(); uncle.draw();
-                
-                if (gameState === 'PLAYING') {
-                    const scoreText = `得分: ${score}`;
-                    ctx.font = "bold 55px 'Cubic_11', sans-serif";
-                    ctx.lineJoin = "round"; ctx.miterLimit = 2; ctx.strokeStyle = "#3d231a"; ctx.lineWidth = 14; 
-                    ctx.strokeText(scoreText, 80, 120); ctx.fillStyle = "#ffcc00"; ctx.fillText(scoreText, 80, 120);
-                }
-                frames++;
+            accumulator += frameTime;
+
+            // 只要累積的時間夠多，就跑運算
+            // 這保證了不管螢幕多快多慢，物理移動的速度都是依照 "step" (1/60秒) 進行的
+            while (accumulator >= step) {
+                updateGameLogic();
+                accumulator -= step;
             }
+
+            // 運算完位置後，再畫圖
+            drawGameRender();
         }
+
         loop();
     </script>
 </body>

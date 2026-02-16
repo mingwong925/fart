@@ -2,10 +2,9 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>響屁一聲，迎新歲!</title>
     <style>
-        /* 載入 Cubic_11 字體 */
         @font-face {
             font-family: 'Cubic_11';
             src: url('Cubic_11.woff');
@@ -16,16 +15,20 @@
         body {
             margin: 0; padding: 0; overflow: hidden; background-color: #1a0000;
             display: flex; justify-content: center; align-items: center;
-            height: 100vh; width: 100vw; touch-action: none;
+            height: 100vh; height: 100dvh; 
+            width: 100vw; 
+            touch-action: none; 
+            -webkit-touch-callout: none; 
+            -webkit-user-select: none; 
+            user-select: none;
         }
 
-        /* --- 遊戲框架容器 --- */
         #game-frame {
             position: relative;
-            width: auto; height: 100vh;
+            width: auto; 
+            height: 100vh; height: 100dvh;
             aspect-ratio: 1080 / 1920;
             display: flex; justify-content: center; align-items: center;
-            /* 優化：陰影移到外框，避免 Canvas 每一幀重繪陰影導致手機卡頓 */
             box-shadow: 0 0 50px rgba(0,0,0,0.8);
         }
 
@@ -35,7 +38,6 @@
             background-color: #1a0000;
         }
 
-        /* UI 層設定 */
         #ui {
             position: absolute; top: 0; left: 0;
             width: 100%; height: 100%;
@@ -46,7 +48,6 @@
             text-align: center;
         }
 
-        /* --- Logo 與 Glow 特效 --- */
         #logo-container {
             position: relative;
             width: 85%;
@@ -79,9 +80,8 @@
             50% { transform: translateY(-30px) scale(1.02); }
         }
 
-        /* --- LOADING 頁面 --- */
         #loading-screen {
-            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; height: 100dvh;
             background-color: #1a0000; background-image: url('loading_BG.svg');
             background-size: contain; background-position: center; background-repeat: no-repeat;
             display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 500;
@@ -92,7 +92,6 @@
         #loader-fill { width: 0%; height: 100%; background: #acff00; transition: width 0.1s; box-shadow: 0 0 10px #acff00; }
         #loading-text { font-size: 40px; font-weight: bold; text-align: center; color: #ffffff; margin-bottom: 5px; }
 
-        /* --- 文字樣式 --- */
         h1 { 
             font-size: 80px; margin: 0; font-weight: bold; color: #ffcc00; 
             -webkit-text-stroke: 12px #3d231a; paint-order: stroke fill; 
@@ -185,11 +184,21 @@
         const collectSound = new Audio('collect.mp3');
         const bgm = new Audio('bgm.mp3');
         bgm.loop = true; bgm.volume = 0.2;
+        fartSound.load(); collectSound.load(); bgm.load();
 
         let gameState = 'LOADING';
         let frames = 0, score = 0, bgX = 0, lastStateChange = 0;
         let particles = [], redPockets = [];
         const bgSpeed = 4;
+
+        // 優化音效播放：避免 cloneNode 造成的瞬間卡頓
+        function playSound(audio) {
+            if (audio.paused) {
+                audio.play().catch(()=>{});
+            } else {
+                audio.currentTime = 0;
+            }
+        }
 
         class RedPocket {
             constructor(x, y) { this.x = x; this.y = y; this.w = 300; this.h = 336; this.floatAngle = 0; this.pulseAngle = 0; this.active = true; }
@@ -221,28 +230,26 @@
                 ctx.rotate(currentAngle);
                 ctx.drawImage(currentImg, -this.w / 2, -this.h / 2, this.w, this.h);
                 ctx.restore();
-                // 注意：fartTimer 邏輯移到 update 中處理，這裡只負責畫圖
             },
             update() {
-                // 減少 fartTimer 的邏輯移到這裡
                 if (this.isFarting) { this.fartTimer--; if (this.fartTimer <= 0) this.isFarting = false; }
-
                 if (gameState === 'START' || gameState === 'LOADING') { this.y = this.base_y + Math.sin(frames * 0.05) * 20; return; }
                 this.velocity += this.gravity; this.y += this.velocity;
                 if (gameState === 'PLAYING') {
                     if (this.y > canvas.height) gameOver();
                     redPockets.forEach(rp => {
                         if (rp.active && this.x + 50 < rp.x + rp.w && this.x + this.w > rp.x && this.y + 50 < rp.y + rp.h + rp.offsetY && this.y + this.h - 50 > rp.y + rp.offsetY) {
-                            rp.active = false; score += 5; collectSound.currentTime = 0; collectSound.play().catch(()=>{});
+                            rp.active = false; score += 5; 
+                            playSound(collectSound);
                         }
                     });
                 }
             },
             flap() {
                 this.velocity = -this.jump; this.isFarting = true; this.fartTimer = 21; 
-                fartSound.currentTime = 0; fartSound.play().catch(()=>{});
-                // 優化：減少粒子數量，從 45 減到 25，減輕手機負擔
-                for(let i = 0; i < 25; i++) {
+                playSound(fartSound);
+                // 減少粒子數量
+                for(let i = 0; i < 20; i++) {
                     particles.push({ x: this.x + 60, y: this.y + this.h - 110, size: Math.random() * 60 + 30, speedX: Math.random() * -20 - 10, speedY: Math.random() * 12 - 6, opacity: 1, color: ['#FFF0F5', '#FFE4E1', '#FFD1DC', '#FFC0CB'][Math.floor(Math.random()*4)] });
                 }
             }
@@ -252,7 +259,6 @@
             list: [], width: 240, speed: 10,
             update() {
                 if (gameState !== 'PLAYING') return;
-                // 注意：邏輯更新頻率固定，這裡的 frames 已經很穩定
                 if (frames % 110 === 0 && frames > 10) {
                     let gap = Math.random() * 150 + 600;
                     let top = Math.random() * (canvas.height - gap - 800) + 300;
@@ -297,10 +303,13 @@
         }
 
         function globalInput(e) {
-            if (e.type === 'touchstart') e.preventDefault();
+            // 防止 iOS 雙擊縮放或其他默認行為
+            if (e.cancelable && e.type === 'touchstart') e.preventDefault();
+            
             const now = Date.now();
             if (!isReady) return;
             if (gameState === 'LOADING') {
+                bgm.play().catch(()=>{}); fartSound.play().catch(()=>{}); fartSound.pause();
                 loaderScreen.style.opacity = '0';
                 setTimeout(() => { loaderScreen.style.display = 'none'; showTitleScreen(); }, 400);
                 return;
@@ -320,18 +329,13 @@
         });
 
         // ==========================================
-        //  核心優化：固定時間步長 (Fixed Time Step)
+        //  核心優化：限制追趕次數 (Clamp Accumulator)
         // ==========================================
-        
-        // 我們將「運算」跟「畫圖」分開
-        // 運算：永遠每秒跑 60 次 (16.66ms 一次)，保證物理速度一致
-        // 畫圖：能跑多快跑多快
         
         let lastTime = Date.now();
         let accumulator = 0;
-        const step = 1000 / 60; // 固定每一幀的邏輯時間 (16.66ms)
+        const step = 1000 / 60; 
 
-        // 這裡只放「純數學運算」，不畫圖
         function updateGameLogic() {
             if (gameState === 'PLAYING') { 
                 bgX -= bgSpeed; 
@@ -353,35 +357,27 @@
             frames++;
         }
 
-        // 這裡只放「畫圖」，不運算位置
         function drawGameRender() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            // 背景
             ctx.drawImage(imgBG, bgX, 0, bgRenderWidth, canvas.height); 
             ctx.drawImage(imgBG, bgX + bgRenderWidth, 0, bgRenderWidth, canvas.height);
             
-            // 柱子
             pipes.list.forEach(p => {
                 ctx.drawImage(imgPillar, p.x, p.top + p.gap, pipes.width, 1600);
                 ctx.save(); ctx.translate(p.x + pipes.width/2, p.top); ctx.scale(1, -1);
                 ctx.drawImage(imgPillar, -pipes.width/2, 0, pipes.width, 1600); ctx.restore();
             });
             
-            // 紅包
             redPockets.forEach(rp => rp.draw());
             
-            // 粒子
             for (let i = 0; i < particles.length; i++) {
                 let p = particles[i];
                 ctx.save(); ctx.fillStyle = p.color; ctx.globalAlpha = Math.max(0, p.opacity); 
                 ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill(); ctx.restore();
             }
             
-            // 主角
             uncle.draw();
             
-            // 分數
             if (gameState === 'PLAYING') {
                 const scoreText = `得分: ${score}`;
                 ctx.font = "bold 55px 'Cubic_11', sans-serif";
@@ -397,19 +393,26 @@
             let frameTime = now - lastTime;
             lastTime = now;
 
-            // 如果手機卡住太久（例如切換分頁），限制最大補償時間，避免一次跑幾百次運算導致卡死
+            // 1. 防止切換分頁後時間爆炸
             if (frameTime > 100) frameTime = 100; 
 
             accumulator += frameTime;
 
-            // 只要累積的時間夠多，就跑運算
-            // 這保證了不管螢幕多快多慢，物理移動的速度都是依照 "step" (1/60秒) 進行的
+            // 2. 限制最大追趕次數：
+            // 如果手機因為點擊而 lag 了 50ms，我們只允許跑 2 次邏輯 (33ms)，剩下的丟棄。
+            // 這會造成輕微的慢動作，但絕對比「瞬移跳格」好。
+            let updates = 0;
             while (accumulator >= step) {
-                updateGameLogic();
+                if (updates < 2) { // 最多追 2 幀
+                    updateGameLogic();
+                }
                 accumulator -= step;
+                updates++;
             }
+            
+            // 如果累積太多跑不完，直接歸零，防止死循環
+            if (accumulator > step) accumulator = 0;
 
-            // 運算完位置後，再畫圖
             drawGameRender();
         }
 
